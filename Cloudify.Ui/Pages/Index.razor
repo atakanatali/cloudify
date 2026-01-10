@@ -1,0 +1,55 @@
+@page "/"
+@inject IHttpClientFactory HttpClientFactory
+
+<h1>Cloudify Environments</h1>
+
+@if (_isLoading)
+{
+    <p>Loading environments...</p>
+}
+else if (_environments.Count == 0)
+{
+    <p>No environments available.</p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>CPU</th>
+                <th>Memory (GB)</th>
+                <th>Storage (GB)</th>
+            </tr>
+        </thead>
+        <tbody>
+        @foreach (CloudEnvironmentView environment in _environments)
+        {
+            <tr>
+                <td>@environment.Name</td>
+                <td>@environment.CpuCores</td>
+                <td>@environment.MemoryGb</td>
+                <td>@environment.StorageGb</td>
+            </tr>
+        }
+        </tbody>
+    </table>
+}
+
+@code {
+    private readonly List<CloudEnvironmentView> _environments = new();
+    private bool _isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        HttpClient client = HttpClientFactory.CreateClient("CloudifyApi");
+        IReadOnlyList<CloudEnvironmentView>? environments = await client.GetFromJsonAsync<IReadOnlyList<CloudEnvironmentView>>("api/environments");
+
+        if (environments is not null)
+        {
+            _environments.AddRange(environments);
+        }
+
+        _isLoading = false;
+    }
+}
