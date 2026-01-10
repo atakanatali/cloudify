@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Cloudify.Application</RootNamespace>
+    <AssemblyName>Cloudify.Application</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Cloudify.Domain\Cloudify.Domain.csproj" />
+  </ItemGroup>
+</Project>

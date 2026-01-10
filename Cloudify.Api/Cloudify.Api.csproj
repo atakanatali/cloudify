@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Cloudify.Api</RootNamespace>
+    <AssemblyName>Cloudify.Api</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Cloudify.Application\Cloudify.Application.csproj" />
+    <ProjectReference Include="..\Cloudify.Infrastructure\Cloudify.Infrastructure.csproj" />
+  </ItemGroup>
+</Project>
