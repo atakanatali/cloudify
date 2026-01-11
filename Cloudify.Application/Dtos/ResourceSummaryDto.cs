@@ -33,6 +33,11 @@ public sealed class ResourceSummaryDto
     public ResourceState State { get; set; }
 
     /// <summary>
+    /// Gets or sets the computed health status for the resource.
+    /// </summary>
+    public HealthStatus HealthStatus { get; set; }
+
+    /// <summary>
     /// Gets or sets the creation timestamp.
     /// </summary>
     public DateTimeOffset CreatedAt { get; set; }

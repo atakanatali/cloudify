@@ -14,6 +14,11 @@ public sealed class GetResourceLogsRequest
     /// Gets or sets the number of log lines to tail.
     /// </summary>
     public int Tail { get; set; } = 100;
+
+    /// <summary>
+    /// Gets or sets the optional service name to target for logs.
+    /// </summary>
+    public string? ServiceName { get; set; }
 }
 
 /// <summary>

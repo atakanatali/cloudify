@@ -183,6 +183,7 @@ public sealed class EfStateStore : IStateStore
         record.State = resource.State;
         record.CreatedAt = resource.CreatedAt;
         record.AppImage = resource is AppServiceResource appService ? appService.Image : null;
+        record.AppHealthEndpointPath = resource is AppServiceResource appService ? appService.HealthEndpointPath : null;
 
         ApplyCapacityProfile(record, resource);
         ApplyStorageProfile(record, resource);
@@ -392,7 +393,8 @@ public sealed class EfStateStore : IStateStore
                 record.CreatedAt,
                 capacityProfile,
                 record.AppImage ?? throw new InvalidOperationException("Application image is required for application services."),
-                portPolicy),
+                portPolicy,
+                record.AppHealthEndpointPath),
             _ => throw new InvalidOperationException("Unsupported resource type.")
         };
     }
@@ -437,6 +439,7 @@ public sealed class EfStateStore : IStateStore
         record.State = resource.State;
         record.CreatedAt = resource.CreatedAt;
         record.AppImage = resource is AppServiceResource appService ? appService.Image : null;
+        record.AppHealthEndpointPath = resource is AppServiceResource appService ? appService.HealthEndpointPath : null;
         record.CapacityProfile = MapCapacityProfileRecord(resource, resource.Id);
         record.StorageProfile = MapStorageProfileRecord(resource, resource.Id);
         record.CredentialProfile = MapCredentialProfileRecord(resource, resource.Id);

@@ -11,6 +11,11 @@ public sealed class AppServiceResource : Resource
     public string Image { get; }
 
     /// <summary>
+    /// Gets the optional HTTP health endpoint path for the application service.
+    /// </summary>
+    public string? HealthEndpointPath { get; }
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="AppServiceResource"/> class.
     /// </summary>
     /// <param name="id">The resource identifier.</param>
@@ -21,6 +26,7 @@ public sealed class AppServiceResource : Resource
     /// <param name="capacityProfile">The capacity profile.</param>
     /// <param name="image">The container image to deploy.</param>
     /// <param name="portPolicy">The port policy.</param>
+    /// <param name="healthEndpointPath">The optional HTTP health endpoint path.</param>
     /// <exception cref="ArgumentException">Thrown when the image is empty.</exception>
     public AppServiceResource(
         Guid id,
@@ -30,7 +36,8 @@ public sealed class AppServiceResource : Resource
         DateTimeOffset createdAt,
         CapacityProfile? capacityProfile,
         string image,
-        PortPolicy? portPolicy)
+        PortPolicy? portPolicy,
+        string? healthEndpointPath)
         : base(id, environmentId, name, ResourceType.AppService, state, createdAt, capacityProfile, portPolicy)
     {
         if (string.IsNullOrWhiteSpace(image))
@@ -39,5 +46,6 @@ public sealed class AppServiceResource : Resource
         }
 
         Image = image;
+        HealthEndpointPath = string.IsNullOrWhiteSpace(healthEndpointPath) ? null : healthEndpointPath.Trim();
     }
 }

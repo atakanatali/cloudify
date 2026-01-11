@@ -13,6 +13,7 @@ public sealed class GetEnvironmentOverviewHandler : IGetEnvironmentOverviewHandl
     private readonly IStateStore _stateStore;
     private readonly ITemplateRenderer _templateRenderer;
     private readonly ISystemProfileProvider _systemProfileProvider;
+    private readonly IOrchestrator _orchestrator;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="GetEnvironmentOverviewHandler"/> class.
@@ -20,14 +21,17 @@ public sealed class GetEnvironmentOverviewHandler : IGetEnvironmentOverviewHandl
     /// <param name="stateStore">The state store.</param>
     /// <param name="templateRenderer">The template renderer.</param>
     /// <param name="systemProfileProvider">The system profile provider.</param>
+    /// <param name="orchestrator">The orchestrator.</param>
     public GetEnvironmentOverviewHandler(
         IStateStore stateStore,
         ITemplateRenderer templateRenderer,
-        ISystemProfileProvider systemProfileProvider)
+        ISystemProfileProvider systemProfileProvider,
+        IOrchestrator orchestrator)
     {
         _stateStore = stateStore ?? throw new ArgumentNullException(nameof(stateStore));
         _templateRenderer = templateRenderer ?? throw new ArgumentNullException(nameof(templateRenderer));
         _systemProfileProvider = systemProfileProvider ?? throw new ArgumentNullException(nameof(systemProfileProvider));
+        _orchestrator = orchestrator ?? throw new ArgumentNullException(nameof(orchestrator));
     }
 
     /// <inheritdoc />
@@ -60,6 +64,12 @@ public sealed class GetEnvironmentOverviewHandler : IGetEnvironmentOverviewHandl
             connectionInfoLookup[resource.Id] = BuildConnectionInfo(resource, ports);
         }
 
+        var healthStatuses = new Dictionary<Guid, HealthStatus>();
+        foreach (Resource resource in resources)
+        {
+            healthStatuses[resource.Id] = await GetHealthStatusAsync(resource, cancellationToken);
+        }
+
         var overview = new EnvironmentOverviewDto
         {
             Environment = new EnvironmentSummaryDto
@@ -72,7 +82,10 @@ public sealed class GetEnvironmentOverviewHandler : IGetEnvironmentOverviewHandl
                 CreatedAt = environment.CreatedAt,
             },
             Resources = resources.Select(resource =>
-                MapResource(resource, connectionInfoLookup.TryGetValue(resource.Id, out ConnectionInfoDto? info) ? info : null)).ToArray(),
+                MapResource(
+                    resource,
+                    connectionInfoLookup.TryGetValue(resource.Id, out ConnectionInfoDto? info) ? info : null,
+                    healthStatuses.TryGetValue(resource.Id, out HealthStatus status) ? status : HealthStatus.Unknown)).ToArray(),
             ComposeYaml = composeYaml,
             HostProfile = hostProfile,
         };
@@ -89,7 +102,7 @@ public sealed class GetEnvironmentOverviewHandler : IGetEnvironmentOverviewHandl
     /// <param name="resource">The resource.</param>
     /// <param name="connectionInfo">The connection info.</param>
     /// <returns>The resource summary DTO.</returns>
-    private static ResourceSummaryDto MapResource(Resource resource, ConnectionInfoDto? connectionInfo)
+    private static ResourceSummaryDto MapResource(Resource resource, ConnectionInfoDto? connectionInfo, HealthStatus healthStatus)
     {
         return new ResourceSummaryDto
         {
@@ -98,6 +111,7 @@ public sealed class GetEnvironmentOverviewHandler : IGetEnvironmentOverviewHandl
             Name = resource.Name,
             ResourceType = resource.ResourceType,
             State = resource.State,
+            HealthStatus = healthStatus,
             CreatedAt = resource.CreatedAt,
             CapacityProfile = resource.CapacityProfile is null
                 ? null
@@ -117,6 +131,29 @@ public sealed class GetEnvironmentOverviewHandler : IGetEnvironmentOverviewHandl
                 },
             ConnectionInfo = connectionInfo,
         };
+    }
+
+    /// <summary>
+    /// Retrieves the health status for a resource with graceful fallback.
+    /// </summary>
+    /// <param name="resource">The resource.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The health status.</returns>
+    private async Task<HealthStatus> GetHealthStatusAsync(Resource resource, CancellationToken cancellationToken)
+    {
+        try
+        {
+            ResourceHealth health = await _orchestrator.GetResourceHealthAsync(resource.Id, cancellationToken);
+            return health.Status;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            return HealthStatus.Unknown;
+        }
     }
 
     /// <summary>

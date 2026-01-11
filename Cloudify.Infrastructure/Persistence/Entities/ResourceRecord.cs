@@ -71,6 +71,11 @@ public abstract class ResourceRecord
     /// Gets or sets the container image for application services.
     /// </summary>
     public string? AppImage { get; set; }
+
+    /// <summary>
+    /// Gets or sets the optional HTTP health endpoint path for application services.
+    /// </summary>
+    public string? AppHealthEndpointPath { get; set; }
 }
 
 /// <summary>

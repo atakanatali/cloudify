@@ -46,7 +46,8 @@ public sealed class GetResourceLogsHandler : IGetResourceLogsHandler
             return Result<GetResourceLogsResponse>.Fail(ErrorCodes.NotFound, "Resource not found.");
         }
 
-        string logs = await _orchestrator.GetResourceLogsAsync(request.ResourceId, request.Tail, cancellationToken);
+        string? serviceName = string.IsNullOrWhiteSpace(request.ServiceName) ? null : request.ServiceName.Trim();
+        string logs = await _orchestrator.GetResourceLogsAsync(request.ResourceId, request.Tail, serviceName, cancellationToken);
         return Result<GetResourceLogsResponse>.Ok(new GetResourceLogsResponse
         {
             ResourceId = request.ResourceId,

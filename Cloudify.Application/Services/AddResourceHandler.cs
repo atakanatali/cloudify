@@ -79,6 +79,13 @@ public sealed class AddResourceHandler : IAddResourceHandler
             return Result<AddResourceResponse>.Fail(ErrorCodes.ValidationFailed, "Application service image is required.");
         }
 
+        if (request.ResourceType == ResourceType.AppService
+            && !string.IsNullOrWhiteSpace(request.HealthEndpointPath)
+            && !request.HealthEndpointPath.StartsWith("/", StringComparison.Ordinal))
+        {
+            return Result<AddResourceResponse>.Fail(ErrorCodes.ValidationFailed, "Health endpoint path must start with '/'.");
+        }
+
         Environment? environment = await _stateStore.GetEnvironmentAsync(request.EnvironmentId, cancellationToken);
         if (environment is null)
         {
@@ -449,7 +456,8 @@ public sealed class AddResourceHandler : IAddResourceHandler
                 createdAt,
                 capacityProfile,
                 request.Image!,
-                portPolicy),
+                portPolicy,
+                request.HealthEndpointPath),
             _ => throw new InvalidOperationException("Unsupported resource type."),
         };
     }
@@ -469,6 +477,7 @@ public sealed class AddResourceHandler : IAddResourceHandler
             Name = resource.Name,
             ResourceType = resource.ResourceType,
             State = resource.State,
+            HealthStatus = HealthStatus.Unknown,
             CreatedAt = resource.CreatedAt,
             CapacityProfile = resource.CapacityProfile is null
                 ? null

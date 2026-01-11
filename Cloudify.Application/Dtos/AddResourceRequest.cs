@@ -43,6 +43,11 @@ public sealed class AddResourceRequest
     public string? Image { get; set; }
 
     /// <summary>
+    /// Gets or sets the optional HTTP health endpoint path for application services.
+    /// </summary>
+    public string? HealthEndpointPath { get; set; }
+
+    /// <summary>
     /// Gets or sets the port policy.
     /// </summary>
     public PortPolicyDto? PortPolicy { get; set; }

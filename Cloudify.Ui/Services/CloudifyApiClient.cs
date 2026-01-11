@@ -222,15 +222,19 @@ public sealed class CloudifyApiClient
     /// </summary>
     /// <param name="resourceId">The resource identifier.</param>
     /// <param name="tail">The number of lines to tail.</param>
+    /// <param name="serviceName">The optional service name.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>The logs result.</returns>
     public async Task<ApiResult<GetResourceLogsResponse>> GetResourceLogsAsync(
         Guid resourceId,
         int tail,
+        string? serviceName,
         CancellationToken cancellationToken)
     {
         HttpClient client = CreateClient();
-        string path = $"api/resources/{resourceId}/logs?tail={tail}";
+        string path = string.IsNullOrWhiteSpace(serviceName)
+            ? $"api/resources/{resourceId}/logs?tail={tail}"
+            : $"api/resources/{resourceId}/logs?tail={tail}&service={Uri.EscapeDataString(serviceName)}";
         using HttpResponseMessage response = await client.GetAsync(path, cancellationToken);
         return await ReadResponseAsync<GetResourceLogsResponse>(response, cancellationToken);
     }

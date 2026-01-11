@@ -27,4 +27,9 @@ public sealed class GetResourceHealthResponse
     /// Gets or sets the resource state.
     /// </summary>
     public ResourceState State { get; set; }
+
+    /// <summary>
+    /// Gets or sets the computed health status.
+    /// </summary>
+    public HealthStatus HealthStatus { get; set; }
 }
