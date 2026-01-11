@@ -8,4 +8,8 @@
     <ProjectReference Include="..\Cloudify.Application\Cloudify.Application.csproj" />
     <ProjectReference Include="..\Cloudify.Domain\Cloudify.Domain.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="9.0.0" />
+  </ItemGroup>
 </Project>
