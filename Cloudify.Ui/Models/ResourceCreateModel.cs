@@ -38,6 +38,11 @@ public sealed class ResourceCreateModel
     public string? Image { get; set; }
 
     /// <summary>
+    /// Gets or sets the optional HTTP health endpoint path for app services.
+    /// </summary>
+    public string? HealthEndpointPath { get; set; }
+
+    /// <summary>
     /// Gets or sets the capacity configuration for the resource.
     /// </summary>
     public ResourceCapacityModel Capacity { get; set; } = new();
@@ -63,6 +68,7 @@ public sealed class ResourceCreateModel
         RequestedPort = null;
         AdditionalPorts = string.Empty;
         Image = null;
+        HealthEndpointPath = null;
         Capacity = new ResourceCapacityModel();
         Storage = new ResourceStorageModel();
         Credentials = new ResourceCredentialModel();

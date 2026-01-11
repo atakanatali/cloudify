@@ -159,6 +159,7 @@ public sealed class ResourcesController : ControllerBase
     /// </summary>
     /// <param name="resId">The resource identifier.</param>
     /// <param name="tail">The number of log lines to return.</param>
+    /// <param name="service">The optional service name.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>The log output.</returns>
     [HttpGet("{resId:guid}/logs")]
@@ -168,12 +169,14 @@ public sealed class ResourcesController : ControllerBase
     public async Task<ActionResult<GetResourceLogsResponse>> GetLogsAsync(
         Guid resId,
         [FromQuery] int tail = 200,
+        [FromQuery] string? service = null,
         CancellationToken cancellationToken = default)
     {
         var request = new GetResourceLogsRequest
         {
             ResourceId = resId,
             Tail = tail,
+            ServiceName = service,
         };
 
         Result<GetResourceLogsResponse> result = await _getResourceLogsHandler.HandleAsync(request, cancellationToken);

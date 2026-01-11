@@ -1,6 +1,7 @@
 @page "/environments/{EnvironmentId:guid}"
 @implements IAsyncDisposable
 @inject CloudifyApiClient ApiClient
+@inject IJSRuntime JsRuntime
 
 <div>
     <h1 class="page-title">@GetEnvironmentTitle()</h1>
@@ -64,6 +65,7 @@ else if (Overview is not null)
                         <th>Name</th>
                         <th>Type</th>
                         <th>Status</th>
+                        <th>Health</th>
                         <th>Connection</th>
                         <th>Scale</th>
                         <th>Actions</th>
@@ -76,6 +78,7 @@ else if (Overview is not null)
                         <td>@resource.Name</td>
                         <td>@resource.ResourceType</td>
                         <td>@RenderStateBadge(resource.State)</td>
+                        <td>@RenderHealthBadge(resource.HealthStatus)</td>
                         <td>
                             @if (resource.ConnectionInfo is null)
                             {
@@ -253,6 +256,10 @@ else if (Overview is not null)
                         <label for="image">Container Image</label>
                         <InputText id="image" @bind-Value="CreateModel.Image" placeholder="e.g. ghcr.io/org/app:latest" />
                     </div>
+                    <div class="form-row">
+                        <label for="health-path">Health Endpoint Path (optional)</label>
+                        <InputText id="health-path" @bind-Value="CreateModel.HealthEndpointPath" placeholder="/health" />
+                    </div>
                 }
 
                 <div class="inline-actions">
@@ -293,7 +300,10 @@ else if (Overview is not null)
                     }
                     else
                     {
-                        <div class="state-panel">@SelectedResourceHealth.State</div>
+                        <div class="state-panel">
+                            <span>@RenderHealthBadge(SelectedResourceHealth.HealthStatus)</span>
+                            <span>State: @SelectedResourceHealth.State</span>
+                        </div>
                     }
                 </div>
                 <div class="card">
@@ -323,8 +333,16 @@ else if (Overview is not null)
             </div>
 
             <div class="card">
-                <h4 class="card-title">Logs (tail 200)</h4>
-                <p class="card-subtitle">Streaming latest service output</p>
+                <div class="card-header">
+                    <div>
+                        <h4 class="card-title">Logs (tail 200)</h4>
+                        <p class="card-subtitle">Polling latest service output</p>
+                    </div>
+                    <label class="toggle">
+                        <InputCheckbox @bind-Value="AutoScrollLogs" />
+                        <span>Auto-scroll</span>
+                    </label>
+                </div>
                 @if (IsLogsLoading)
                 {
                     <div class="state-panel">Loading logs...</div>
@@ -335,7 +353,7 @@ else if (Overview is not null)
                 }
                 else
                 {
-                    <div class="log-box">@SelectedResourceLogs</div>
+                    <div class="log-box" @ref="LogBoxRef">@SelectedResourceLogs</div>
                 }
             </div>
 
@@ -449,6 +467,16 @@ else if (Overview is not null)
     /// Gets or sets the logs error message.
     /// </summary>
     private string? LogsErrorMessage { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether log output should auto-scroll.
+    /// </summary>
+    private bool AutoScrollLogs { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets the log box element reference.
+    /// </summary>
+    private ElementReference LogBoxRef { get; set; }
 
     /// <summary>
     /// Gets or sets the cancellation token source for log polling.
@@ -569,6 +597,14 @@ else if (Overview is not null)
             return;
         }
 
+        if (CreateModel.ResourceType == ResourceType.AppService
+            && !string.IsNullOrWhiteSpace(CreateModel.HealthEndpointPath)
+            && !CreateModel.HealthEndpointPath.StartsWith("/", StringComparison.Ordinal))
+        {
+            ResourceErrorMessage = "Health endpoint path must start with '/'.";
+            return;
+        }
+
         List<int> additionalPorts = ParsePorts(CreateModel.AdditionalPorts);
         if (additionalPorts.Count == 0 && CreateModel.PortMode == PortMode.Manual && CreateModel.RequestedPort is null)
         {
@@ -587,6 +623,7 @@ else if (Overview is not null)
             StorageProfile = BuildStorageProfile(),
             CredentialProfile = BuildCredentialProfile(),
             Image = CreateModel.ResourceType == ResourceType.AppService ? CreateModel.Image : null,
+            HealthEndpointPath = CreateModel.ResourceType == ResourceType.AppService ? CreateModel.HealthEndpointPath : null,
             RequestedPort = CreateModel.PortMode == PortMode.Manual ? CreateModel.RequestedPort : null,
             PortPolicy = BuildPortPolicy(additionalPorts),
         };
@@ -671,7 +708,7 @@ else if (Overview is not null)
         IsLogsLoading = true;
         LogsErrorMessage = null;
 
-        ApiResult<GetResourceLogsResponse> result = await ApiClient.GetResourceLogsAsync(SelectedResource.Id, 200, CancellationToken.None);
+        ApiResult<GetResourceLogsResponse> result = await ApiClient.GetResourceLogsAsync(SelectedResource.Id, 200, serviceName: null, CancellationToken.None);
         if (result.Success && result.Value is not null)
         {
             SelectedResourceLogs = result.Value.Logs;
@@ -682,6 +719,8 @@ else if (Overview is not null)
         }
 
         IsLogsLoading = false;
+
+        await ScrollLogsToBottomAsync();
     }
 
     /// <summary>
@@ -718,6 +757,20 @@ else if (Overview is not null)
         LogPollingTokenSource?.Cancel();
         LogPollingTokenSource?.Dispose();
         LogPollingTokenSource = null;
+    }
+
+    /// <summary>
+    /// Scrolls the log output to the bottom when auto-scroll is enabled.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous operation.</returns>
+    private async Task ScrollLogsToBottomAsync()
+    {
+        if (!AutoScrollLogs || IsLogsLoading || !string.IsNullOrWhiteSpace(LogsErrorMessage))
+        {
+            return;
+        }
+
+        await JsRuntime.InvokeVoidAsync("cloudify.scrollToBottom", LogBoxRef);
     }
 
     /// <summary>
@@ -977,6 +1030,24 @@ else if (Overview is not null)
         };
 
         return new MarkupString($"<span class=\"{css}\">{state}</span>");
+    }
+
+    /// <summary>
+    /// Renders a status badge for the health status.
+    /// </summary>
+    /// <param name="status">The health status.</param>
+    /// <returns>The rendered markup.</returns>
+    private MarkupString RenderHealthBadge(HealthStatus status)
+    {
+        string css = status switch
+        {
+            HealthStatus.Healthy => "badge success",
+            HealthStatus.Unhealthy => "badge danger",
+            HealthStatus.Unknown => "badge warning",
+            _ => "badge",
+        };
+
+        return new MarkupString($"<span class=\"{css}\">{status}</span>");
     }
 
     /// <summary>

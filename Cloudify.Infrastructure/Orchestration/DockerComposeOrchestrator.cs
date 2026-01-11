@@ -116,12 +116,12 @@ public sealed class DockerComposeOrchestrator : IOrchestrator
     }
 
     /// <inheritdoc />
-    public async Task<string> GetResourceLogsAsync(Guid resourceId, int tail, CancellationToken cancellationToken)
+    public async Task<string> GetResourceLogsAsync(Guid resourceId, int tail, string? serviceName, CancellationToken cancellationToken)
     {
         Resource resource = await GetResourceAsync(resourceId, cancellationToken);
-        string serviceName = GetServiceName(resource);
+        string targetService = string.IsNullOrWhiteSpace(serviceName) ? GetServiceName(resource) : serviceName;
 
-        IReadOnlyList<string> commandArguments = new[] { "logs", "--tail", tail.ToString(), serviceName };
+        IReadOnlyList<string> commandArguments = new[] { "logs", "--tail", tail.ToString(), targetService };
         (ProcessExecutionResult result, IReadOnlyList<string> arguments) = await RunComposeAsync(
             resource.EnvironmentId,
             commandArguments,
@@ -146,6 +146,23 @@ public sealed class DockerComposeOrchestrator : IOrchestrator
         result.EnsureSuccess(_options.DockerComposeCommand, arguments);
 
         return ParseResourceState(result.StandardOutput, serviceName);
+    }
+
+    /// <inheritdoc />
+    public async Task<ResourceHealth> GetResourceHealthAsync(Guid resourceId, CancellationToken cancellationToken)
+    {
+        Resource resource = await GetResourceAsync(resourceId, cancellationToken);
+        string serviceName = GetServiceName(resource);
+
+        IReadOnlyList<string> commandArguments = new[] { "ps", "--format", "json" };
+        (ProcessExecutionResult result, IReadOnlyList<string> arguments) = await RunComposeAsync(
+            resource.EnvironmentId,
+            commandArguments,
+            cancellationToken);
+
+        result.EnsureSuccess(_options.DockerComposeCommand, arguments);
+
+        return ParseResourceHealth(result.StandardOutput, serviceName);
     }
 
     private async Task<Resource> GetResourceAsync(Guid resourceId, CancellationToken cancellationToken)
@@ -252,6 +269,42 @@ public sealed class DockerComposeOrchestrator : IOrchestrator
         return MapState(state, health);
     }
 
+    /// <summary>
+    /// Parses the compose output into a health snapshot for a specific service.
+    /// </summary>
+    /// <param name="output">The raw compose output.</param>
+    /// <param name="serviceName">The service name.</param>
+    /// <returns>The parsed resource health snapshot.</returns>
+    private ResourceHealth ParseResourceHealth(string output, string serviceName)
+    {
+        if (string.IsNullOrWhiteSpace(output))
+        {
+            return new ResourceHealth(ResourceState.Stopped, HealthStatus.Unknown);
+        }
+
+        var services = JsonSerializer.Deserialize<List<DockerComposeServiceStatus>>(output,
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+        if (services is null)
+        {
+            return new ResourceHealth(ResourceState.Failed, HealthStatus.Unknown);
+        }
+
+        DockerComposeServiceStatus? service = services.FirstOrDefault(s => string.Equals(s.Service, serviceName, StringComparison.OrdinalIgnoreCase));
+
+        if (service is null)
+        {
+            return new ResourceHealth(ResourceState.Deleted, HealthStatus.Unknown);
+        }
+
+        string state = service.State ?? string.Empty;
+        string health = service.Health ?? string.Empty;
+
+        ResourceState resourceState = MapState(state, health);
+        HealthStatus healthStatus = MapHealth(state, health);
+        return new ResourceHealth(resourceState, healthStatus);
+    }
+
     private ResourceState MapState(string state, string health)
     {
         if (state.Contains("running", StringComparison.OrdinalIgnoreCase))
@@ -275,6 +328,42 @@ public sealed class DockerComposeOrchestrator : IOrchestrator
         }
 
         return ResourceState.Failed;
+    }
+
+    /// <summary>
+    /// Maps compose state and health strings to a unified health status.
+    /// </summary>
+    /// <param name="state">The container state.</param>
+    /// <param name="health">The compose health string.</param>
+    /// <returns>The unified health status.</returns>
+    private HealthStatus MapHealth(string state, string health)
+    {
+        if (state.Contains("running", StringComparison.OrdinalIgnoreCase))
+        {
+            if (health.Contains("unhealthy", StringComparison.OrdinalIgnoreCase))
+            {
+                return HealthStatus.Unhealthy;
+            }
+
+            if (health.Contains("healthy", StringComparison.OrdinalIgnoreCase))
+            {
+                return HealthStatus.Healthy;
+            }
+
+            return HealthStatus.Healthy;
+        }
+
+        if (state.Contains("exited", StringComparison.OrdinalIgnoreCase) || state.Contains("stopped", StringComparison.OrdinalIgnoreCase))
+        {
+            return HealthStatus.Unhealthy;
+        }
+
+        if (state.Contains("created", StringComparison.OrdinalIgnoreCase) || state.Contains("restarting", StringComparison.OrdinalIgnoreCase))
+        {
+            return HealthStatus.Unknown;
+        }
+
+        return HealthStatus.Unknown;
     }
 
     private sealed class DockerComposeServiceStatus

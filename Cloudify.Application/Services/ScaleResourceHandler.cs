@@ -119,7 +119,8 @@ public sealed class ScaleResourceHandler : IScaleResourceHandler
                 app.CreatedAt,
                 capacityProfile,
                 app.Image,
-                app.PortPolicy),
+                app.PortPolicy,
+                app.HealthEndpointPath),
             _ => throw new InvalidOperationException("Unsupported resource type."),
         };
     }

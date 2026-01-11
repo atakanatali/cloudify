@@ -117,6 +117,7 @@ public sealed class CloudifyDbContext : DbContext
             entity.Property(record => record.State).HasConversion<int>().IsRequired();
             entity.Property(record => record.CreatedAt).IsRequired();
             entity.Property(record => record.AppImage).HasMaxLength(500);
+            entity.Property(record => record.AppHealthEndpointPath).HasMaxLength(200);
             entity.HasIndex(record => new { record.EnvironmentId, record.Name }).IsUnique();
             entity.HasOne(record => record.Environment)
                 .WithMany(environment => environment.Resources)

@@ -369,6 +369,19 @@ textarea {
     flex-wrap: wrap;
 }
 
+.toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+.toggle input {
+    width: 1rem;
+    height: 1rem;
+}
+
 .tag-list {
     display: flex;
     flex-wrap: wrap;

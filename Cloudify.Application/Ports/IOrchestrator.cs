@@ -48,9 +48,18 @@ public interface IOrchestrator
     /// </summary>
     /// <param name="resourceId">The resource identifier.</param>
     /// <param name="tail">The number of log lines to tail.</param>
+    /// <param name="serviceName">The optional service name.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>The log output.</returns>
-    Task<string> GetResourceLogsAsync(Guid resourceId, int tail, CancellationToken cancellationToken);
+    Task<string> GetResourceLogsAsync(Guid resourceId, int tail, string? serviceName, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Retrieves the current health for a resource.
+    /// </summary>
+    /// <param name="resourceId">The resource identifier.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The resource health snapshot.</returns>
+    Task<ResourceHealth> GetResourceHealthAsync(Guid resourceId, CancellationToken cancellationToken);
 
     /// <summary>
     /// Retrieves resource status.
