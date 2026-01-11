@@ -57,7 +57,7 @@ public sealed class GetEnvironmentOverviewHandler : IGetEnvironmentOverviewHandl
         foreach (Resource resource in resources)
         {
             IReadOnlyList<int> ports = await _stateStore.ListResourcePortsAsync(environment.Id, resource.Id, cancellationToken);
-            connectionInfoLookup[resource.Id] = BuildConnectionInfo(ports);
+            connectionInfoLookup[resource.Id] = BuildConnectionInfo(resource, ports);
         }
 
         var overview = new EnvironmentOverviewDto
@@ -163,9 +163,10 @@ public sealed class GetEnvironmentOverviewHandler : IGetEnvironmentOverviewHandl
     /// <summary>
     /// Builds the connection info for the resource from the allocated ports.
     /// </summary>
+    /// <param name="resource">The resource.</param>
     /// <param name="allocatedPorts">The allocated host ports.</param>
     /// <returns>The connection info when ports are available; otherwise, null.</returns>
-    private static ConnectionInfoDto? BuildConnectionInfo(IReadOnlyList<int> allocatedPorts)
+    private static ConnectionInfoDto? BuildConnectionInfo(Resource resource, IReadOnlyList<int> allocatedPorts)
     {
         if (allocatedPorts.Count == 0)
         {
@@ -173,10 +174,28 @@ public sealed class GetEnvironmentOverviewHandler : IGetEnvironmentOverviewHandl
         }
 
         int port = allocatedPorts.OrderBy(port => port).First();
-        return new ConnectionInfoDto
+        var connectionInfo = new ConnectionInfoDto
         {
             Host = "localhost",
             Port = port,
         };
+
+        switch (resource)
+        {
+            case PostgresResource postgres:
+                connectionInfo.Username = postgres.CredentialProfile.Username;
+                connectionInfo.Password = postgres.CredentialProfile.Password;
+                break;
+            case MongoResource mongo:
+                connectionInfo.Username = mongo.CredentialProfile.Username;
+                connectionInfo.Password = mongo.CredentialProfile.Password;
+                break;
+            case RabbitResource rabbit:
+                connectionInfo.Username = rabbit.CredentialProfile.Username;
+                connectionInfo.Password = rabbit.CredentialProfile.Password;
+                break;
+        }
+
+        return connectionInfo;
     }
 }
