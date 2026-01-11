@@ -97,7 +97,8 @@ public interface IStateStore
     /// <param name="resourceId">The resource identifier.</param>
     /// <param name="port">The allocated port.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    Task AssignPortAsync(Guid environmentId, Guid resourceId, int port, CancellationToken cancellationToken);
+    /// <returns>True when the port assignment was stored; otherwise, false.</returns>
+    Task<bool> AssignPortAsync(Guid environmentId, Guid resourceId, int port, CancellationToken cancellationToken);
 
     /// <summary>
     /// Lists allocated ports for an environment.

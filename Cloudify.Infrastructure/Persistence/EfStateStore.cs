@@ -208,7 +208,7 @@ public sealed class EfStateStore : IStateStore
     }
 
     /// <inheritdoc />
-    public async Task AssignPortAsync(Guid environmentId, Guid resourceId, int port, CancellationToken cancellationToken)
+    public async Task<bool> AssignPortAsync(Guid environmentId, Guid resourceId, int port, CancellationToken cancellationToken)
     {
         await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
         bool exists = await _dbContext.ResourcePorts
@@ -216,7 +216,7 @@ public sealed class EfStateStore : IStateStore
 
         if (exists)
         {
-            return;
+            return false;
         }
 
         var record = new ResourcePortRecord
@@ -227,8 +227,18 @@ public sealed class EfStateStore : IStateStore
         };
 
         _dbContext.ResourcePorts.Add(record);
-        await _dbContext.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
+
+        try
+        {
+            await _dbContext.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            return true;
+        }
+        catch (DbUpdateException)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            return false;
+        }
     }
 
     /// <inheritdoc />

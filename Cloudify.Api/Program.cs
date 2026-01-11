@@ -2,6 +2,7 @@ using Cloudify.Application.Ports;
 using Cloudify.Application.Services;
 using Cloudify.Infrastructure.Options;
 using Cloudify.Infrastructure.Orchestration;
+using Cloudify.Infrastructure.Ports;
 using Cloudify.Infrastructure.Persistence;
 using Cloudify.Infrastructure.Processes;
 using Microsoft.Extensions.DependencyInjection;
@@ -25,6 +26,7 @@ builder.Services.AddScoped<IEnvironmentService, EnvironmentService>();
 builder.Services.AddSingleton<ProcessRunner>();
 builder.Services.AddScoped<IOrchestrator, DockerComposeOrchestrator>();
 builder.Services.AddScoped<ITemplateRenderer, DockerComposeTemplateRenderer>();
+builder.Services.AddScoped<IPortAllocator, PortAllocator>();
 
 var app = builder.Build();
 
