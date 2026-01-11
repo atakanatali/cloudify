@@ -121,7 +121,8 @@ public sealed class StateStoreIntegrationTests
         Assert.NotNull(fetchedPostgres.PortPolicy);
         Assert.Contains(5432, fetchedPostgres.PortPolicy!.ExposedPorts);
 
-        await stateStore.AssignPortAsync(environment.Id, resource.Id, 15432, CancellationToken.None);
+        bool assigned = await stateStore.AssignPortAsync(environment.Id, resource.Id, 15432, CancellationToken.None);
+        Assert.True(assigned);
 
         IReadOnlyList<int> ports = await stateStore.ListAllocatedPortsAsync(environment.Id, CancellationToken.None);
 

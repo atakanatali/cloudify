@@ -82,25 +82,44 @@ public sealed class AddResourceHandler : IAddResourceHandler
             return Result<AddResourceResponse>.Fail(ErrorCodes.NotFound, "Environment not found.");
         }
 
-        var ports = request.PortPolicy?.ExposedPorts?.ToList() ?? new List<int>();
+        List<int> requestedPorts = request.PortPolicy?.ExposedPorts?.Distinct().ToList() ?? new List<int>();
         PortAllocationResultDto? allocation = null;
-        if (ports.Count > 0 || request.RequestedPort is not null)
+        if (requestedPorts.Count > 0 || request.RequestedPort is not null)
         {
-            allocation = await _portAllocator.AllocateAsync(request.EnvironmentId, request.ResourceType, request.RequestedPort, cancellationToken);
-            if (allocation.Port > 0 && !ports.Contains(allocation.Port))
+            try
             {
-                ports.Add(allocation.Port);
+                allocation = await _portAllocator.AllocateAsync(request.EnvironmentId, request.ResourceType, request.RequestedPort, cancellationToken);
+            }
+            catch (PortAllocationException exception)
+            {
+                return Result<AddResourceResponse>.Fail(ErrorCodes.ValidationFailed, exception.Message);
             }
         }
 
-        PortPolicy? portPolicy = ports.Count > 0 ? new PortPolicy(ports) : null;
+        List<int> allocatedPorts = BuildPortList(requestedPorts, allocation);
+        PortPolicy? portPolicy = allocatedPorts.Count > 0 ? new PortPolicy(allocatedPorts) : null;
 
-        Resource resource = CreateResource(request, capacityProfile, storageProfile, credentialProfile, portPolicy);
+        Guid resourceId = Guid.NewGuid();
+        DateTimeOffset createdAt = DateTimeOffset.UtcNow;
+        Resource resource = CreateResource(request, capacityProfile, storageProfile, credentialProfile, portPolicy, resourceId, createdAt);
         await _stateStore.AddResourceAsync(resource, cancellationToken);
 
-        if (allocation is not null && allocation.Port > 0)
+        try
         {
-            await _stateStore.AssignPortAsync(request.EnvironmentId, resource.Id, allocation.Port, cancellationToken);
+            allocation = await TryAssignPortAsync(
+                request,
+                requestedPorts,
+                allocation,
+                capacityProfile,
+                storageProfile,
+                credentialProfile,
+                resourceId,
+                createdAt,
+                cancellationToken);
+        }
+        catch (PortAllocationException exception)
+        {
+            return Result<AddResourceResponse>.Fail(ErrorCodes.Conflict, exception.Message);
         }
 
         ConnectionInfoDto? connectionInfo = BuildConnectionInfo(allocation?.Port);
@@ -253,6 +272,110 @@ public sealed class AddResourceHandler : IAddResourceHandler
     }
 
     /// <summary>
+    /// Builds the effective port list from requested ports and an optional allocation.
+    /// </summary>
+    /// <param name="requestedPorts">The ports requested in the payload.</param>
+    /// <param name="allocation">The allocation result to include.</param>
+    /// <returns>The combined list of ports.</returns>
+    private static List<int> BuildPortList(IReadOnlyCollection<int> requestedPorts, PortAllocationResultDto? allocation)
+    {
+        var ports = new List<int>(requestedPorts);
+        if (allocation is not null && allocation.Port > 0 && !ports.Contains(allocation.Port))
+        {
+            ports.Add(allocation.Port);
+        }
+
+        return ports;
+    }
+
+    /// <summary>
+    /// Attempts to assign an allocated port and retries for auto allocations if needed.
+    /// </summary>
+    /// <param name="request">The original add resource request.</param>
+    /// <param name="requestedPorts">The ports requested in the payload.</param>
+    /// <param name="allocation">The allocation to assign.</param>
+    /// <param name="capacityProfile">The capacity profile.</param>
+    /// <param name="storageProfile">The storage profile.</param>
+    /// <param name="credentialProfile">The credential profile.</param>
+    /// <param name="resourceId">The resource identifier.</param>
+    /// <param name="createdAt">The resource creation timestamp.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The final allocation result.</returns>
+    /// <exception cref="PortAllocationException">Thrown when a unique port cannot be assigned.</exception>
+    private async Task<PortAllocationResultDto?> TryAssignPortAsync(
+        AddResourceRequest request,
+        IReadOnlyCollection<int> requestedPorts,
+        PortAllocationResultDto? allocation,
+        CapacityProfile? capacityProfile,
+        StorageProfile? storageProfile,
+        CredentialProfile? credentialProfile,
+        Guid resourceId,
+        DateTimeOffset createdAt,
+        CancellationToken cancellationToken)
+    {
+        if (allocation is null || allocation.Port <= 0)
+        {
+            return allocation;
+        }
+
+        const int maxAttempts = 20;
+        int attempt = 0;
+        PortAllocationResultDto currentAllocation = allocation;
+
+        while (attempt < maxAttempts)
+        {
+            bool assigned = await _stateStore.AssignPortAsync(
+                request.EnvironmentId,
+                resourceId,
+                currentAllocation.Port,
+                cancellationToken);
+
+            if (assigned)
+            {
+                return currentAllocation;
+            }
+
+            if (request.RequestedPort is not null)
+            {
+                await _stateStore.RemoveResourceAsync(resourceId, cancellationToken);
+                throw new PortAllocationException($"Requested port {currentAllocation.Port} is no longer available.");
+            }
+
+            attempt++;
+
+            try
+            {
+                currentAllocation = await _portAllocator.AllocateAsync(
+                    request.EnvironmentId,
+                    request.ResourceType,
+                    null,
+                    cancellationToken);
+            }
+            catch (PortAllocationException)
+            {
+                await _stateStore.RemoveResourceAsync(resourceId, cancellationToken);
+                throw;
+            }
+
+            List<int> updatedPorts = BuildPortList(requestedPorts, currentAllocation);
+            PortPolicy? updatedPolicy = updatedPorts.Count > 0 ? new PortPolicy(updatedPorts) : null;
+            Resource updatedResource = CreateResource(
+                request,
+                capacityProfile,
+                storageProfile,
+                credentialProfile,
+                updatedPolicy,
+                resourceId,
+                createdAt);
+
+            await _stateStore.UpdateResourceAsync(updatedResource, cancellationToken);
+        }
+
+        await _stateStore.RemoveResourceAsync(resourceId, cancellationToken);
+        throw new PortAllocationException("Unable to allocate a unique port for the resource.");
+    }
+
+    /// <summary>
     /// Creates a resource instance based on the request.
     /// </summary>
     /// <param name="request">The add resource request.</param>
@@ -260,19 +383,22 @@ public sealed class AddResourceHandler : IAddResourceHandler
     /// <param name="storageProfile">The storage profile.</param>
     /// <param name="credentialProfile">The credential profile.</param>
     /// <param name="portPolicy">The port policy.</param>
+    /// <param name="resourceId">The resource identifier.</param>
+    /// <param name="createdAt">The resource creation timestamp.</param>
     /// <returns>The created resource.</returns>
     private static Resource CreateResource(
         AddResourceRequest request,
         CapacityProfile? capacityProfile,
         StorageProfile? storageProfile,
         CredentialProfile? credentialProfile,
-        PortPolicy? portPolicy)
+        PortPolicy? portPolicy,
+        Guid resourceId,
+        DateTimeOffset createdAt)
     {
-        DateTimeOffset createdAt = DateTimeOffset.UtcNow;
         return request.ResourceType switch
         {
             ResourceType.Redis => new RedisResource(
-                Guid.NewGuid(),
+                resourceId,
                 request.EnvironmentId,
                 request.Name,
                 ResourceState.Provisioning,
@@ -281,7 +407,7 @@ public sealed class AddResourceHandler : IAddResourceHandler
                 storageProfile!,
                 portPolicy),
             ResourceType.Postgres => new PostgresResource(
-                Guid.NewGuid(),
+                resourceId,
                 request.EnvironmentId,
                 request.Name,
                 ResourceState.Provisioning,
@@ -291,7 +417,7 @@ public sealed class AddResourceHandler : IAddResourceHandler
                 credentialProfile!,
                 portPolicy),
             ResourceType.Mongo => new MongoResource(
-                Guid.NewGuid(),
+                resourceId,
                 request.EnvironmentId,
                 request.Name,
                 ResourceState.Provisioning,
@@ -301,7 +427,7 @@ public sealed class AddResourceHandler : IAddResourceHandler
                 credentialProfile!,
                 portPolicy),
             ResourceType.Rabbit => new RabbitResource(
-                Guid.NewGuid(),
+                resourceId,
                 request.EnvironmentId,
                 request.Name,
                 ResourceState.Provisioning,
@@ -311,7 +437,7 @@ public sealed class AddResourceHandler : IAddResourceHandler
                 credentialProfile!,
                 portPolicy),
             ResourceType.AppService => new AppServiceResource(
-                Guid.NewGuid(),
+                resourceId,
                 request.EnvironmentId,
                 request.Name,
                 ResourceState.Provisioning,
