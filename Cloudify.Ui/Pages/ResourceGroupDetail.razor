@@ -1,0 +1,251 @@
+@page "/resource-groups/{ResourceGroupId:guid}"
+@inject CloudifyApiClient ApiClient
+@inject NavigationManager NavigationManager
+
+<div>
+    <h1 class="page-title">@GetTitle()</h1>
+    <p class="page-subtitle">Manage environments in this resource group.</p>
+</div>
+
+<div class="grid grid-2">
+    <section class="card">
+        <div class="card-header">
+            <div>
+                <h2 class="card-title">Create Environment</h2>
+                <p class="card-subtitle">Provision prod, test, or dev environments for workloads.</p>
+            </div>
+        </div>
+        <EditForm Model="CreateModel" OnValidSubmit="HandleCreateAsync">
+            <div class="form-grid">
+                <div class="form-row">
+                    <label for="env-name">Environment</label>
+                    <InputSelect id="env-name" @bind-Value="CreateModel.Name">
+                        @foreach (EnvironmentName name in Enum.GetValues<EnvironmentName>())
+                        {
+                            <option value="@name">@name</option>
+                        }
+                    </InputSelect>
+                </div>
+                <div class="form-row">
+                    <label for="env-network">Network Mode</label>
+                    <InputSelect id="env-network" @bind-Value="CreateModel.NetworkMode">
+                        @foreach (NetworkMode mode in Enum.GetValues<NetworkMode>())
+                        {
+                            <option value="@mode">@mode</option>
+                        }
+                    </InputSelect>
+                </div>
+                <div class="form-row">
+                    <label for="env-domain">Base Domain</label>
+                    <InputText id="env-domain" @bind-Value="CreateModel.BaseDomain" placeholder="optional" />
+                </div>
+                <div class="inline-actions">
+                    <button class="button" type="submit" disabled="@IsSaving">@GetCreateButtonLabel()</button>
+                </div>
+            </div>
+        </EditForm>
+        @if (!string.IsNullOrWhiteSpace(SuccessMessage))
+        {
+            <div class="state-panel success">@SuccessMessage</div>
+        }
+        @if (!string.IsNullOrWhiteSpace(ErrorMessage))
+        {
+            <div class="state-panel error">@ErrorMessage</div>
+        }
+    </section>
+
+    <section class="card">
+        <div class="card-header">
+            <div>
+                <h2 class="card-title">Environments</h2>
+                <p class="card-subtitle">Lifecycle stages available in this group.</p>
+            </div>
+            <button class="button ghost" type="button" @onclick="ReloadAsync">Refresh</button>
+        </div>
+        @if (IsLoading)
+        {
+            <div class="state-panel">Loading environments...</div>
+        }
+        else if (Environments.Count == 0)
+        {
+            <div class="state-panel">No environments provisioned yet.</div>
+        }
+        else
+        {
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Network</th>
+                        <th>Created</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (EnvironmentSummaryDto environment in Environments)
+                {
+                    <tr>
+                        <td>@environment.Name</td>
+                        <td>@environment.NetworkMode</td>
+                        <td>@environment.CreatedAt.ToLocalTime().ToString("g")</td>
+                        <td>
+                            <div class="inline-actions">
+                                <button class="button" type="button" @onclick="() => NavigateToEnvironment(environment)">View</button>
+                            </div>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        }
+    </section>
+</div>
+
+@code {
+    /// <summary>
+    /// Gets or sets the resource group identifier from the route.
+    /// </summary>
+    [Parameter]
+    public Guid ResourceGroupId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the resource group name from the query string.
+    /// </summary>
+    [SupplyParameterFromQuery]
+    public string? Name { get; set; }
+
+    /// <summary>
+    /// Gets the create form model for environments.
+    /// </summary>
+    private EnvironmentCreateModel CreateModel { get; } = new();
+
+    /// <summary>
+    /// Gets the list of environments for the resource group.
+    /// </summary>
+    private List<EnvironmentSummaryDto> Environments { get; } = new();
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the page is loading data.
+    /// </summary>
+    private bool IsLoading { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the create action is running.
+    /// </summary>
+    private bool IsSaving { get; set; }
+
+    /// <summary>
+    /// Gets or sets the error message displayed to the user.
+    /// </summary>
+    private string? ErrorMessage { get; set; }
+
+    /// <summary>
+    /// Gets or sets the success message displayed to the user.
+    /// </summary>
+    private string? SuccessMessage { get; set; }
+
+    /// <summary>
+    /// Loads environments when the component initializes.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous operation.</returns>
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadEnvironmentsAsync();
+    }
+
+    /// <summary>
+    /// Reloads environment data on demand.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous operation.</returns>
+    private async Task ReloadAsync()
+    {
+        await LoadEnvironmentsAsync();
+    }
+
+    /// <summary>
+    /// Handles the environment creation workflow.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous operation.</returns>
+    private async Task HandleCreateAsync()
+    {
+        IsSaving = true;
+        ErrorMessage = null;
+        SuccessMessage = null;
+
+        var request = new CreateEnvironmentRequest
+        {
+            ResourceGroupId = ResourceGroupId,
+            Name = CreateModel.Name,
+            NetworkMode = CreateModel.NetworkMode,
+            BaseDomain = string.IsNullOrWhiteSpace(CreateModel.BaseDomain) ? null : CreateModel.BaseDomain,
+        };
+
+        ApiResult<EnvironmentSummaryDto> result = await ApiClient.CreateEnvironmentAsync(ResourceGroupId, request, CancellationToken.None);
+        if (result.Success && result.Value is not null)
+        {
+            Environments.Insert(0, result.Value);
+            SuccessMessage = "Environment created successfully.";
+            CreateModel.Reset();
+        }
+        else
+        {
+            ErrorMessage = result.ErrorMessage ?? "Unable to create the environment.";
+        }
+
+        IsSaving = false;
+    }
+
+    /// <summary>
+    /// Navigates to the environment detail page.
+    /// </summary>
+    /// <param name="environment">The selected environment.</param>
+    private void NavigateToEnvironment(EnvironmentSummaryDto environment)
+    {
+        string url = $"/environments/{environment.Id}?name={Uri.EscapeDataString(environment.Name.ToString())}";
+        NavigationManager.NavigateTo(url);
+    }
+
+    /// <summary>
+    /// Loads environments for the current resource group.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous operation.</returns>
+    private async Task LoadEnvironmentsAsync()
+    {
+        IsLoading = true;
+        ErrorMessage = null;
+        SuccessMessage = null;
+
+        ApiResult<IReadOnlyList<EnvironmentSummaryDto>> result = await ApiClient.ListEnvironmentsAsync(ResourceGroupId, CancellationToken.None);
+        Environments.Clear();
+        if (result.Success && result.Value is not null)
+        {
+            Environments.AddRange(result.Value.OrderByDescending(environment => environment.CreatedAt));
+        }
+        else
+        {
+            ErrorMessage = result.ErrorMessage ?? "Unable to load environments.";
+        }
+
+        IsLoading = false;
+    }
+
+    /// <summary>
+    /// Gets the title displayed for the resource group.
+    /// </summary>
+    /// <returns>The formatted title.</returns>
+    private string GetTitle()
+    {
+        return string.IsNullOrWhiteSpace(Name)
+            ? $"Resource Group {ResourceGroupId}"
+            : $"Resource Group · {Name}";
+    }
+
+    /// <summary>
+    /// Gets the label used for the create button.
+    /// </summary>
+    /// <returns>The formatted button label.</returns>
+    private string GetCreateButtonLabel()
+    {
+        return IsSaving ? "Provisioning..." : "Create Environment";
+    }
+}

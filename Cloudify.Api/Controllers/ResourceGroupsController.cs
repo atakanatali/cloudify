@@ -14,6 +14,7 @@ public sealed class ResourceGroupsController : ControllerBase
     private readonly ICreateResourceGroupHandler _createResourceGroupHandler;
     private readonly IListResourceGroupsHandler _listResourceGroupsHandler;
     private readonly ICreateEnvironmentHandler _createEnvironmentHandler;
+    private readonly IListEnvironmentsHandler _listEnvironmentsHandler;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ResourceGroupsController"/> class.
@@ -21,10 +22,12 @@ public sealed class ResourceGroupsController : ControllerBase
     /// <param name="createResourceGroupHandler">The resource group creation handler.</param>
     /// <param name="listResourceGroupsHandler">The resource group list handler.</param>
     /// <param name="createEnvironmentHandler">The environment creation handler.</param>
+    /// <param name="listEnvironmentsHandler">The environment list handler.</param>
     public ResourceGroupsController(
         ICreateResourceGroupHandler createResourceGroupHandler,
         IListResourceGroupsHandler listResourceGroupsHandler,
-        ICreateEnvironmentHandler createEnvironmentHandler)
+        ICreateEnvironmentHandler createEnvironmentHandler,
+        IListEnvironmentsHandler listEnvironmentsHandler)
     {
         _createResourceGroupHandler = createResourceGroupHandler
             ?? throw new ArgumentNullException(nameof(createResourceGroupHandler));
@@ -32,6 +35,8 @@ public sealed class ResourceGroupsController : ControllerBase
             ?? throw new ArgumentNullException(nameof(listResourceGroupsHandler));
         _createEnvironmentHandler = createEnvironmentHandler
             ?? throw new ArgumentNullException(nameof(createEnvironmentHandler));
+        _listEnvironmentsHandler = listEnvironmentsHandler
+            ?? throw new ArgumentNullException(nameof(listEnvironmentsHandler));
     }
 
     /// <summary>
@@ -75,6 +80,32 @@ public sealed class ResourceGroupsController : ControllerBase
     {
         Result<ListResourceGroupsResponse> result = await _listResourceGroupsHandler.HandleAsync(
             new ListResourceGroupsRequest(),
+            cancellationToken);
+
+        if (!result.Success || result.Value is null)
+        {
+            return ApiProblemDetails.Create(result);
+        }
+
+        return Ok(result.Value);
+    }
+
+    /// <summary>
+    /// Lists environments for a resource group.
+    /// </summary>
+    /// <param name="rgId">The resource group identifier.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The environment list.</returns>
+    [HttpGet("{rgId:guid}/environments")]
+    [ProducesResponseType(typeof(ListEnvironmentsResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ListEnvironmentsResponse>> ListEnvironmentsAsync(
+        Guid rgId,
+        CancellationToken cancellationToken)
+    {
+        Result<ListEnvironmentsResponse> result = await _listEnvironmentsHandler.HandleAsync(
+            new ListEnvironmentsRequest { ResourceGroupId = rgId },
             cancellationToken);
 
         if (!result.Success || result.Value is null)

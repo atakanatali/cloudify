@@ -1,37 +1,459 @@
+:root {
+    color-scheme: light;
+    --bg: #f5f7fb;
+    --surface: #ffffff;
+    --surface-alt: #f0f4f8;
+    --border: #d5dce5;
+    --text: #0f172a;
+    --text-muted: #475569;
+    --primary: #2563eb;
+    --primary-dark: #1d4ed8;
+    --success: #16a34a;
+    --warning: #d97706;
+    --danger: #dc2626;
+    --shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+}
+
+* {
+    box-sizing: border-box;
+}
+
 body {
     font-family: "Segoe UI", sans-serif;
     margin: 0;
-    padding: 0;
+    background: var(--bg);
+    color: var(--text);
 }
 
-.page {
+a {
+    color: inherit;
+}
+
+.app-shell {
     display: flex;
     min-height: 100vh;
 }
 
 .sidebar {
-    background-color: #1f2937;
-    color: #f9fafb;
-    padding: 1rem;
-    width: 220px;
+    width: 250px;
+    background: #111827;
+    color: #e2e8f0;
+    padding: 1.5rem 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
 }
 
-.sidebar a {
-    color: #f9fafb;
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.brand-mark {
+    background: var(--primary);
+    color: #fff;
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 1.1rem;
+}
+
+.brand-name {
+    font-weight: 700;
+    font-size: 1.05rem;
+}
+
+.brand-subtitle {
+    font-size: 0.8rem;
+    color: #94a3b8;
+}
+
+.nav {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    font-size: 0.95rem;
+}
+
+.nav-section {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    color: #94a3b8;
+    letter-spacing: 0.08em;
+}
+
+.nav-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.nav-link {
+    display: block;
+    padding: 0.5rem 0.75rem;
+    border-radius: 10px;
     text-decoration: none;
+    color: #e2e8f0;
+    background: transparent;
+}
+
+.nav-link.active,
+.nav-link:hover {
+    background: rgba(37, 99, 235, 0.2);
+    color: #fff;
+}
+
+.nav-hint {
+    color: #94a3b8;
+    font-size: 0.85rem;
+    margin: 0;
+}
+
+.main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.topbar {
+    background: var(--surface);
+    padding: 1.25rem 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border);
+    box-shadow: var(--shadow);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.topbar-title {
+    font-size: 1.3rem;
+    font-weight: 600;
+}
+
+.topbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.status-chip {
+    background: rgba(22, 163, 74, 0.12);
+    color: var(--success);
+    padding: 0.35rem 0.8rem;
+    border-radius: 999px;
+    font-weight: 600;
+    font-size: 0.8rem;
+}
+
+.avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: #1e293b;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
+    font-weight: 600;
 }
 
 .content {
     padding: 2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.page-title {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin: 0;
+}
+
+.page-subtitle {
+    margin: 0.25rem 0 0;
+    color: var(--text-muted);
+}
+
+.grid {
+    display: grid;
+    gap: 1.5rem;
+}
+
+.grid-2 {
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+}
+
+.grid-3 {
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 1.5rem;
+    box-shadow: var(--shadow);
+}
+
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.card-title {
+    font-weight: 600;
+    font-size: 1.1rem;
+    margin: 0;
+}
+
+.card-subtitle {
+    margin: 0.35rem 0 0;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+.form-grid {
+    display: grid;
+    gap: 1rem;
+}
+
+.form-row {
+    display: grid;
+    gap: 0.5rem;
+}
+
+label {
+    font-weight: 600;
+    font-size: 0.85rem;
+}
+
+input,
+select,
+textarea {
+    padding: 0.6rem 0.75rem;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    font-size: 0.95rem;
+    background: #fff;
+    color: var(--text);
+}
+
+textarea {
+    min-height: 120px;
+    font-family: "Segoe UI", sans-serif;
+}
+
+.button {
+    border: none;
+    border-radius: 10px;
+    padding: 0.6rem 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    background: var(--primary);
+    color: #fff;
+    transition: background 0.2s ease;
+}
+
+.button:hover {
+    background: var(--primary-dark);
+}
+
+.button.secondary {
+    background: #e2e8f0;
+    color: #0f172a;
+}
+
+.button.secondary:hover {
+    background: #cbd5f5;
+}
+
+.button.ghost {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+}
+
+.button.danger {
+    background: var(--danger);
 }
 
 .table {
-    border-collapse: collapse;
     width: 100%;
+    border-collapse: collapse;
+    font-size: 0.95rem;
 }
 
 .table th,
 .table td {
-    border: 1px solid #d1d5db;
-    padding: 0.5rem;
+    padding: 0.75rem;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+}
+
+.table th {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+}
+
+.badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.6rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    background: var(--surface-alt);
+    color: var(--text);
+}
+
+.badge.success {
+    background: rgba(22, 163, 74, 0.12);
+    color: var(--success);
+}
+
+.badge.warning {
+    background: rgba(217, 119, 6, 0.12);
+    color: var(--warning);
+}
+
+.badge.danger {
+    background: rgba(220, 38, 38, 0.12);
+    color: var(--danger);
+}
+
+.state-panel {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.25rem;
+    border-radius: 12px;
+    background: var(--surface-alt);
+    border: 1px dashed var(--border);
+    color: var(--text-muted);
+    font-size: 0.95rem;
+}
+
+.state-panel.error {
+    border-color: rgba(220, 38, 38, 0.35);
+    background: rgba(220, 38, 38, 0.08);
+    color: var(--danger);
+}
+
+.state-panel.success {
+    border-color: rgba(22, 163, 74, 0.35);
+    background: rgba(22, 163, 74, 0.08);
+    color: var(--success);
+}
+
+.inline-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.tag-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+
+.tag {
+    background: var(--surface-alt);
+    border-radius: 999px;
+    padding: 0.25rem 0.6rem;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.drawer-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.4);
+    display: flex;
+    justify-content: flex-end;
+    z-index: 50;
+}
+
+.drawer {
+    width: min(520px, 90vw);
+    background: var(--surface);
+    padding: 1.5rem;
+    box-shadow: var(--shadow);
+    overflow-y: auto;
+}
+
+.drawer-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.drawer-title {
+    font-size: 1.2rem;
+    font-weight: 600;
+    margin: 0;
+}
+
+.log-box {
+    background: #0f172a;
+    color: #e2e8f0;
+    padding: 1rem;
+    border-radius: 12px;
+    font-family: "Consolas", monospace;
+    font-size: 0.85rem;
+    max-height: 240px;
+    overflow: auto;
+    white-space: pre-wrap;
+}
+
+.wizard-steps {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.wizard-step {
+    flex: 1;
+    text-align: center;
+    padding: 0.4rem 0.6rem;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    background: var(--surface-alt);
+    color: var(--text-muted);
+}
+
+.wizard-step.active {
+    background: rgba(37, 99, 235, 0.15);
+    color: var(--primary);
+    font-weight: 600;
+}
+
+.connection-info {
+    display: grid;
+    gap: 0.25rem;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+.table-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
 }

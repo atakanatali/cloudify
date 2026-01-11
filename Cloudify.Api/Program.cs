@@ -29,6 +29,7 @@ builder.Services.AddScoped<IDeleteResourceHandler, DeleteResourceHandler>();
 builder.Services.AddScoped<IGetEnvironmentOverviewHandler, GetEnvironmentOverviewHandler>();
 builder.Services.AddScoped<IGetResourceHealthHandler, GetResourceHealthHandler>();
 builder.Services.AddScoped<IGetResourceLogsHandler, GetResourceLogsHandler>();
+builder.Services.AddScoped<IListEnvironmentsHandler, ListEnvironmentsHandler>();
 builder.Services.AddScoped<IListResourceGroupsHandler, ListResourceGroupsHandler>();
 builder.Services.AddScoped<IRestartResourceHandler, RestartResourceHandler>();
 builder.Services.AddScoped<IScaleResourceHandler, ScaleResourceHandler>();
