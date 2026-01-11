@@ -1,0 +1,1055 @@
+@page "/environments/{EnvironmentId:guid}"
+@implements IAsyncDisposable
+@inject CloudifyApiClient ApiClient
+
+<div>
+    <h1 class="page-title">@GetEnvironmentTitle()</h1>
+    <p class="page-subtitle">Monitor resource health, logs, and scaling controls.</p>
+</div>
+
+@if (IsLoading)
+{
+    <div class="state-panel">Loading environment overview...</div>
+}
+else if (!string.IsNullOrWhiteSpace(ErrorMessage))
+{
+    <div class="state-panel error">@ErrorMessage</div>
+}
+else if (Overview is not null)
+{
+    <div class="grid grid-3">
+        <section class="card">
+            <h2 class="card-title">Environment</h2>
+            <p class="card-subtitle">@Overview.Environment.Name · @Overview.Environment.NetworkMode</p>
+            <div class="connection-info">
+                <span>Environment Id: @Overview.Environment.Id</span>
+                <span>Resource Group: @Overview.Environment.ResourceGroupId</span>
+                <span>Created: @Overview.Environment.CreatedAt.ToLocalTime().ToString("g")</span>
+                <span>Base Domain: @(string.IsNullOrWhiteSpace(Overview.Environment.BaseDomain) ? "None" : Overview.Environment.BaseDomain)</span>
+            </div>
+        </section>
+        <section class="card">
+            <h2 class="card-title">Resources</h2>
+            <p class="card-subtitle">@Overview.Resources.Count total resources</p>
+            <div class="connection-info">
+                <span>Running: @Overview.Resources.Count(resource => resource.State == ResourceState.Running)</span>
+                <span>Stopped: @Overview.Resources.Count(resource => resource.State == ResourceState.Stopped)</span>
+                <span>Provisioning: @Overview.Resources.Count(resource => resource.State == ResourceState.Provisioning)</span>
+            </div>
+        </section>
+        <section class="card">
+            <h2 class="card-title">Compose Preview</h2>
+            <p class="card-subtitle">Rendered compose summary</p>
+            <textarea readonly>@Overview.ComposeYaml</textarea>
+        </section>
+    </div>
+
+    <section class="card">
+        <div class="card-header">
+            <div>
+                <h2 class="card-title">Resources</h2>
+                <p class="card-subtitle">Manage state, scaling, and connectivity.</p>
+            </div>
+            <button class="button ghost" type="button" @onclick="ReloadAsync">Refresh</button>
+        </div>
+        @if (Overview.Resources.Count == 0)
+        {
+            <div class="state-panel">No resources added yet.</div>
+        }
+        else
+        {
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Type</th>
+                        <th>Status</th>
+                        <th>Connection</th>
+                        <th>Scale</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (ResourceSummaryDto resource in Overview.Resources)
+                {
+                    <tr>
+                        <td>@resource.Name</td>
+                        <td>@resource.ResourceType</td>
+                        <td>@RenderStateBadge(resource.State)</td>
+                        <td>
+                            @if (resource.ConnectionInfo is null)
+                            {
+                                <span class="badge warning">Pending</span>
+                            }
+                            else
+                            {
+                                <div class="connection-info">
+                                    <span>Endpoint: @resource.ConnectionInfo.Host:@resource.ConnectionInfo.Port</span>
+                                    @if (!string.IsNullOrWhiteSpace(resource.ConnectionInfo.Username))
+                                    {
+                                        <span>User: @resource.ConnectionInfo.Username</span>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(resource.ConnectionInfo.Password))
+                                    {
+                                        <span>Password: @resource.ConnectionInfo.Password</span>
+                                    }
+                                    <span>Database: @resource.Name</span>
+                                </div>
+                            }
+                        </td>
+                        <td>
+                            <div class="form-row">
+                                <input type="number" min="1" value="@GetScaleTarget(resource)" @onchange="eventArgs => UpdateScaleTarget(resource, eventArgs.Value)" />
+                                <button class="button secondary" type="button" @onclick="() => ScaleResourceAsync(resource)" disabled="@IsResourceBusy(resource)">Scale</button>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="table-actions">
+                                <button class="button ghost" type="button" @onclick="() => OpenDrawerAsync(resource)">Details</button>
+                                <button class="button secondary" type="button" @onclick="() => StartResourceAsync(resource)" disabled="@IsResourceBusy(resource)">Start</button>
+                                <button class="button secondary" type="button" @onclick="() => StopResourceAsync(resource)" disabled="@IsResourceBusy(resource)">Stop</button>
+                                <button class="button secondary" type="button" @onclick="() => RestartResourceAsync(resource)" disabled="@IsResourceBusy(resource)">Restart</button>
+                                <button class="button danger" type="button" @onclick="() => DeleteResourceAsync(resource)" disabled="@IsResourceBusy(resource)">Delete</button>
+                            </div>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        }
+        @if (!string.IsNullOrWhiteSpace(ActionMessage))
+        {
+            <div class="state-panel @(IsActionError ? "error" : "success")">@ActionMessage</div>
+        }
+    </section>
+
+    <section class="card">
+        <div class="card-header">
+            <div>
+                <h2 class="card-title">Create Resource Wizard</h2>
+                <p class="card-subtitle">Deploy databases, messaging, and app services.</p>
+            </div>
+            <div class="wizard-steps">
+                <div class="wizard-step @(WizardStep == 1 ? "active" : string.Empty)">Step 1 · Type</div>
+                <div class="wizard-step @(WizardStep == 2 ? "active" : string.Empty)">Step 2 · Ports</div>
+                <div class="wizard-step @(WizardStep == 3 ? "active" : string.Empty)">Step 3 · Capacity</div>
+            </div>
+        </div>
+
+        @if (WizardStep == 1)
+        {
+            <div class="form-grid">
+                <div class="form-row">
+                    <label for="res-name">Resource Name</label>
+                    <InputText id="res-name" @bind-Value="CreateModel.Name" placeholder="e.g. orders-db" />
+                </div>
+                <div class="form-row">
+                    <label for="res-type">Resource Type</label>
+                    <InputSelect id="res-type" @bind-Value="CreateModel.ResourceType">
+                        @foreach (ResourceType type in Enum.GetValues<ResourceType>())
+                        {
+                            <option value="@type">@type</option>
+                        }
+                    </InputSelect>
+                </div>
+                <div class="inline-actions">
+                    <button class="button secondary" type="button" @onclick="NextStep">Next</button>
+                </div>
+            </div>
+        }
+        else if (WizardStep == 2)
+        {
+            <div class="form-grid">
+                <div class="form-row">
+                    <label for="port-mode">Port Mode</label>
+                    <InputSelect id="port-mode" @bind-Value="CreateModel.PortMode">
+                        @foreach (PortMode mode in Enum.GetValues<PortMode>())
+                        {
+                            <option value="@mode">@mode</option>
+                        }
+                    </InputSelect>
+                </div>
+                @if (CreateModel.PortMode == PortMode.Manual)
+                {
+                    <div class="form-row">
+                        <label for="requested-port">Requested Port</label>
+                        <InputNumber id="requested-port" @bind-Value="CreateModel.RequestedPort" />
+                    </div>
+                }
+                <div class="form-row">
+                    <label for="additional-ports">Additional Ports</label>
+                    <InputText id="additional-ports" @bind-Value="CreateModel.AdditionalPorts" placeholder="comma-separated" />
+                </div>
+                <div class="inline-actions">
+                    <button class="button ghost" type="button" @onclick="PreviousStep">Back</button>
+                    <button class="button secondary" type="button" @onclick="NextStep">Next</button>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="form-grid">
+                <div class="grid grid-2">
+                    <div class="form-row">
+                        <label for="cpu-limit">CPU Limit</label>
+                        <InputNumber id="cpu-limit" @bind-Value="CreateModel.Capacity.CpuLimit" />
+                    </div>
+                    <div class="form-row">
+                        <label for="mem-limit">Memory (GB)</label>
+                        <InputNumber id="mem-limit" @bind-Value="CreateModel.Capacity.MemoryLimit" />
+                    </div>
+                    <div class="form-row">
+                        <label for="replicas">Replicas</label>
+                        <InputNumber id="replicas" @bind-Value="CreateModel.Capacity.Replicas" />
+                    </div>
+                    <div class="form-row">
+                        <label for="capacity-notes">Notes</label>
+                        <InputText id="capacity-notes" @bind-Value="CreateModel.Capacity.Notes" placeholder="optional" />
+                    </div>
+                </div>
+
+                @if (RequiresStorage(CreateModel.ResourceType))
+                {
+                    <div class="grid grid-2">
+                        <div class="form-row">
+                            <label for="volume">Volume Name</label>
+                            <InputText id="volume" @bind-Value="CreateModel.Storage.VolumeName" />
+                        </div>
+                        <div class="form-row">
+                            <label for="size">Size (GB)</label>
+                            <InputNumber id="size" @bind-Value="CreateModel.Storage.SizeGb" />
+                        </div>
+                        <div class="form-row">
+                            <label for="mount">Mount Path</label>
+                            <InputText id="mount" @bind-Value="CreateModel.Storage.MountPath" />
+                        </div>
+                        <div class="form-row">
+                            <label for="persistent">Persistent</label>
+                            <InputSelect id="persistent" @bind-Value="CreateModel.Storage.IsPersistent">
+                                <option value="true">Yes</option>
+                                <option value="false">No</option>
+                            </InputSelect>
+                        </div>
+                    </div>
+                }
+
+                @if (RequiresCredentials(CreateModel.ResourceType))
+                {
+                    <div class="grid grid-2">
+                        <div class="form-row">
+                            <label for="cred-user">Username</label>
+                            <InputText id="cred-user" @bind-Value="CreateModel.Credentials.Username" />
+                        </div>
+                        <div class="form-row">
+                            <label for="cred-pass">Password</label>
+                            <InputText id="cred-pass" type="password" @bind-Value="CreateModel.Credentials.Password" />
+                        </div>
+                    </div>
+                }
+
+                @if (CreateModel.ResourceType == ResourceType.AppService)
+                {
+                    <div class="form-row">
+                        <label for="image">Container Image</label>
+                        <InputText id="image" @bind-Value="CreateModel.Image" placeholder="e.g. ghcr.io/org/app:latest" />
+                    </div>
+                }
+
+                <div class="inline-actions">
+                    <button class="button ghost" type="button" @onclick="PreviousStep">Back</button>
+                    <button class="button" type="button" @onclick="CreateResourceAsync" disabled="@IsCreatingResource">@GetCreateResourceLabel()</button>
+                </div>
+            </div>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(ResourceErrorMessage))
+        {
+            <div class="state-panel error">@ResourceErrorMessage</div>
+        }
+        @if (!string.IsNullOrWhiteSpace(ResourceSuccessMessage))
+        {
+            <div class="state-panel success">@ResourceSuccessMessage</div>
+        }
+    </section>
+}
+
+@if (IsDrawerOpen && SelectedResource is not null)
+{
+    <div class="drawer-backdrop" @onclick="CloseDrawerAsync">
+        <aside class="drawer" @onclick:stopPropagation>
+            <div class="drawer-header">
+                <h3 class="drawer-title">@SelectedResource.Name · @SelectedResource.ResourceType</h3>
+                <button class="button ghost" type="button" @onclick="CloseDrawerAsync">Close</button>
+            </div>
+            <p class="card-subtitle">Resource Id: @SelectedResource.Id</p>
+
+            <div class="grid grid-2">
+                <div class="card">
+                    <h4 class="card-title">Health</h4>
+                    <p class="card-subtitle">Latest runtime status</p>
+                    @if (SelectedResourceHealth is null)
+                    {
+                        <div class="state-panel">Checking health...</div>
+                    }
+                    else
+                    {
+                        <div class="state-panel">@SelectedResourceHealth.State</div>
+                    }
+                </div>
+                <div class="card">
+                    <h4 class="card-title">Connection</h4>
+                    <p class="card-subtitle">Connect from localhost</p>
+                    @if (SelectedResource.ConnectionInfo is null)
+                    {
+                        <div class="state-panel">Connection info pending.</div>
+                    }
+                    else
+                    {
+                        <div class="connection-info">
+                            <span>Host: @SelectedResource.ConnectionInfo.Host</span>
+                            <span>Port: @SelectedResource.ConnectionInfo.Port</span>
+                            @if (!string.IsNullOrWhiteSpace(SelectedResource.ConnectionInfo.Username))
+                            {
+                                <span>User: @SelectedResource.ConnectionInfo.Username</span>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(SelectedResource.ConnectionInfo.Password))
+                            {
+                                <span>Password: @SelectedResource.ConnectionInfo.Password</span>
+                            }
+                            <span>Database: @SelectedResource.Name</span>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <div class="card">
+                <h4 class="card-title">Logs (tail 200)</h4>
+                <p class="card-subtitle">Streaming latest service output</p>
+                @if (IsLogsLoading)
+                {
+                    <div class="state-panel">Loading logs...</div>
+                }
+                else if (!string.IsNullOrWhiteSpace(LogsErrorMessage))
+                {
+                    <div class="state-panel error">@LogsErrorMessage</div>
+                }
+                else
+                {
+                    <div class="log-box">@SelectedResourceLogs</div>
+                }
+            </div>
+
+            <div class="inline-actions">
+                <button class="button secondary" type="button" @onclick="RefreshHealthAsync">Refresh Health</button>
+                <button class="button secondary" type="button" @onclick="RefreshLogsAsync">Refresh Logs</button>
+            </div>
+        </aside>
+    </div>
+}
+
+@code {
+    /// <summary>
+    /// Gets or sets the environment identifier from the route.
+    /// </summary>
+    [Parameter]
+    public Guid EnvironmentId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the environment name from the query string.
+    /// </summary>
+    [SupplyParameterFromQuery]
+    public string? Name { get; set; }
+
+    /// <summary>
+    /// Gets or sets the environment overview payload.
+    /// </summary>
+    private EnvironmentOverviewDto? Overview { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the page is loading data.
+    /// </summary>
+    private bool IsLoading { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets the page-level error message.
+    /// </summary>
+    private string? ErrorMessage { get; set; }
+
+    /// <summary>
+    /// Gets or sets the resource action status message.
+    /// </summary>
+    private string? ActionMessage { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the last action resulted in an error.
+    /// </summary>
+    private bool IsActionError { get; set; }
+
+    /// <summary>
+    /// Gets the create resource wizard model.
+    /// </summary>
+    private ResourceCreateModel CreateModel { get; } = new();
+
+    /// <summary>
+    /// Gets or sets the current wizard step.
+    /// </summary>
+    private int WizardStep { get; set; } = 1;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the resource create call is running.
+    /// </summary>
+    private bool IsCreatingResource { get; set; }
+
+    /// <summary>
+    /// Gets or sets the resource creation error message.
+    /// </summary>
+    private string? ResourceErrorMessage { get; set; }
+
+    /// <summary>
+    /// Gets or sets the resource creation success message.
+    /// </summary>
+    private string? ResourceSuccessMessage { get; set; }
+
+    /// <summary>
+    /// Gets the scale targets keyed by resource identifier.
+    /// </summary>
+    private Dictionary<Guid, int> ScaleTargets { get; } = new();
+
+    /// <summary>
+    /// Gets the busy resource identifiers currently running actions.
+    /// </summary>
+    private HashSet<Guid> BusyResources { get; } = new();
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the resource drawer is open.
+    /// </summary>
+    private bool IsDrawerOpen { get; set; }
+
+    /// <summary>
+    /// Gets or sets the currently selected resource.
+    /// </summary>
+    private ResourceSummaryDto? SelectedResource { get; set; }
+
+    /// <summary>
+    /// Gets or sets the selected resource health response.
+    /// </summary>
+    private GetResourceHealthResponse? SelectedResourceHealth { get; set; }
+
+    /// <summary>
+    /// Gets or sets the latest resource logs for the drawer.
+    /// </summary>
+    private string SelectedResourceLogs { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the logs are currently loading.
+    /// </summary>
+    private bool IsLogsLoading { get; set; }
+
+    /// <summary>
+    /// Gets or sets the logs error message.
+    /// </summary>
+    private string? LogsErrorMessage { get; set; }
+
+    /// <summary>
+    /// Gets or sets the cancellation token source for log polling.
+    /// </summary>
+    private CancellationTokenSource? LogPollingTokenSource { get; set; }
+
+    /// <summary>
+    /// Loads the environment overview when the component initializes.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous operation.</returns>
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadOverviewAsync();
+    }
+
+    /// <summary>
+    /// Disposes the component and stops any background polling.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous operation.</returns>
+    public ValueTask DisposeAsync()
+    {
+        LogPollingTokenSource?.Cancel();
+        LogPollingTokenSource?.Dispose();
+        return ValueTask.CompletedTask;
+    }
+
+    /// <summary>
+    /// Reloads the environment overview on demand.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous operation.</returns>
+    private async Task ReloadAsync()
+    {
+        await LoadOverviewAsync();
+    }
+
+    /// <summary>
+    /// Moves the wizard to the next step.
+    /// </summary>
+    private void NextStep()
+    {
+        if (WizardStep < 3)
+        {
+            WizardStep++;
+        }
+    }
+
+    /// <summary>
+    /// Moves the wizard to the previous step.
+    /// </summary>
+    private void PreviousStep()
+    {
+        if (WizardStep > 1)
+        {
+            WizardStep--;
+        }
+    }
+
+    /// <summary>
+    /// Creates a new resource using the wizard inputs.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous operation.</returns>
+    private async Task CreateResourceAsync()
+    {
+        ResourceErrorMessage = null;
+        ResourceSuccessMessage = null;
+
+        if (string.IsNullOrWhiteSpace(CreateModel.Name))
+        {
+            ResourceErrorMessage = "Resource name is required.";
+            return;
+        }
+
+        if (CreateModel.PortMode == PortMode.Manual && CreateModel.RequestedPort is null)
+        {
+            ResourceErrorMessage = "Requested port is required for manual mode.";
+            return;
+        }
+
+        if (CreateModel.PortMode == PortMode.Manual && CreateModel.RequestedPort is not null && CreateModel.RequestedPort is < 1 or > 65535)
+        {
+            ResourceErrorMessage = "Requested port must be between 1 and 65535.";
+            return;
+        }
+
+        if (RequiresStorage(CreateModel.ResourceType) && string.IsNullOrWhiteSpace(CreateModel.Storage.VolumeName))
+        {
+            ResourceErrorMessage = "Storage volume name is required.";
+            return;
+        }
+
+        if (RequiresStorage(CreateModel.ResourceType) && CreateModel.Storage.SizeGb < 1)
+        {
+            ResourceErrorMessage = "Storage size must be at least 1 GB.";
+            return;
+        }
+
+        if (RequiresStorage(CreateModel.ResourceType) && string.IsNullOrWhiteSpace(CreateModel.Storage.MountPath))
+        {
+            ResourceErrorMessage = "Storage mount path is required.";
+            return;
+        }
+
+        if (RequiresCredentials(CreateModel.ResourceType) && string.IsNullOrWhiteSpace(CreateModel.Credentials.Username))
+        {
+            ResourceErrorMessage = "Credential username is required.";
+            return;
+        }
+
+        if (RequiresCredentials(CreateModel.ResourceType) && string.IsNullOrWhiteSpace(CreateModel.Credentials.Password))
+        {
+            ResourceErrorMessage = "Credential password is required.";
+            return;
+        }
+
+        if (CreateModel.ResourceType == ResourceType.AppService && string.IsNullOrWhiteSpace(CreateModel.Image))
+        {
+            ResourceErrorMessage = "App service image is required.";
+            return;
+        }
+
+        List<int> additionalPorts = ParsePorts(CreateModel.AdditionalPorts);
+        if (additionalPorts.Count == 0 && CreateModel.PortMode == PortMode.Manual && CreateModel.RequestedPort is null)
+        {
+            ResourceErrorMessage = "Provide a valid port configuration.";
+            return;
+        }
+
+        IsCreatingResource = true;
+
+        var request = new AddResourceRequest
+        {
+            EnvironmentId = EnvironmentId,
+            Name = CreateModel.Name,
+            ResourceType = CreateModel.ResourceType,
+            CapacityProfile = BuildCapacityProfile(),
+            StorageProfile = BuildStorageProfile(),
+            CredentialProfile = BuildCredentialProfile(),
+            Image = CreateModel.ResourceType == ResourceType.AppService ? CreateModel.Image : null,
+            RequestedPort = CreateModel.PortMode == PortMode.Manual ? CreateModel.RequestedPort : null,
+            PortPolicy = BuildPortPolicy(additionalPorts),
+        };
+
+        ApiResult<ResourceSummaryDto> result = await ApiClient.AddResourceAsync(EnvironmentId, request, CancellationToken.None);
+        if (result.Success && result.Value is not null)
+        {
+            await LoadOverviewAsync();
+            ResourceSuccessMessage = "Resource created successfully.";
+            CreateModel.Reset();
+            WizardStep = 1;
+        }
+        else
+        {
+            ResourceErrorMessage = result.ErrorMessage ?? "Unable to create the resource.";
+        }
+
+        IsCreatingResource = false;
+    }
+
+    /// <summary>
+    /// Opens the resource detail drawer and starts polling logs.
+    /// </summary>
+    /// <param name="resource">The selected resource.</param>
+    /// <returns>A task that represents the asynchronous operation.</returns>
+    private async Task OpenDrawerAsync(ResourceSummaryDto resource)
+    {
+        SelectedResource = resource;
+        IsDrawerOpen = true;
+        SelectedResourceLogs = string.Empty;
+        LogsErrorMessage = null;
+        await RefreshHealthAsync();
+        await StartLogPollingAsync();
+    }
+
+    /// <summary>
+    /// Closes the resource detail drawer and stops polling.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous operation.</returns>
+    private Task CloseDrawerAsync()
+    {
+        IsDrawerOpen = false;
+        SelectedResourceHealth = null;
+        SelectedResource = null;
+        StopLogPolling();
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Refreshes the selected resource health status.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous operation.</returns>
+    private async Task RefreshHealthAsync()
+    {
+        if (SelectedResource is null)
+        {
+            return;
+        }
+
+        ApiResult<GetResourceHealthResponse> result = await ApiClient.GetResourceHealthAsync(SelectedResource.Id, CancellationToken.None);
+        if (result.Success && result.Value is not null)
+        {
+            SelectedResourceHealth = result.Value;
+        }
+        else
+        {
+            SelectedResourceHealth = null;
+        }
+    }
+
+    /// <summary>
+    /// Refreshes the selected resource logs once.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous operation.</returns>
+    private async Task RefreshLogsAsync()
+    {
+        if (SelectedResource is null)
+        {
+            return;
+        }
+
+        IsLogsLoading = true;
+        LogsErrorMessage = null;
+
+        ApiResult<GetResourceLogsResponse> result = await ApiClient.GetResourceLogsAsync(SelectedResource.Id, 200, CancellationToken.None);
+        if (result.Success && result.Value is not null)
+        {
+            SelectedResourceLogs = result.Value.Logs;
+        }
+        else
+        {
+            LogsErrorMessage = result.ErrorMessage ?? "Unable to load logs.";
+        }
+
+        IsLogsLoading = false;
+    }
+
+    /// <summary>
+    /// Starts polling resource logs on an interval.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous operation.</returns>
+    private async Task StartLogPollingAsync()
+    {
+        StopLogPolling();
+        LogPollingTokenSource = new CancellationTokenSource();
+        CancellationToken token = LogPollingTokenSource.Token;
+
+        await RefreshLogsAsync();
+
+        _ = Task.Run(async () =>
+        {
+            using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
+            while (await timer.WaitForNextTickAsync(token))
+            {
+                await InvokeAsync(async () =>
+                {
+                    await RefreshLogsAsync();
+                    StateHasChanged();
+                });
+            }
+        }, token);
+    }
+
+    /// <summary>
+    /// Stops any active log polling task.
+    /// </summary>
+    private void StopLogPolling()
+    {
+        LogPollingTokenSource?.Cancel();
+        LogPollingTokenSource?.Dispose();
+        LogPollingTokenSource = null;
+    }
+
+    /// <summary>
+    /// Starts the selected resource.
+    /// </summary>
+    /// <param name="resource">The resource to start.</param>
+    /// <returns>A task that represents the asynchronous operation.</returns>
+    private async Task StartResourceAsync(ResourceSummaryDto resource)
+    {
+        await RunResourceActionAsync(resource, () => ApiClient.StartResourceAsync(resource.Id, CancellationToken.None));
+    }
+
+    /// <summary>
+    /// Stops the selected resource.
+    /// </summary>
+    /// <param name="resource">The resource to stop.</param>
+    /// <returns>A task that represents the asynchronous operation.</returns>
+    private async Task StopResourceAsync(ResourceSummaryDto resource)
+    {
+        await RunResourceActionAsync(resource, () => ApiClient.StopResourceAsync(resource.Id, CancellationToken.None));
+    }
+
+    /// <summary>
+    /// Restarts the selected resource.
+    /// </summary>
+    /// <param name="resource">The resource to restart.</param>
+    /// <returns>A task that represents the asynchronous operation.</returns>
+    private async Task RestartResourceAsync(ResourceSummaryDto resource)
+    {
+        await RunResourceActionAsync(resource, () => ApiClient.RestartResourceAsync(resource.Id, CancellationToken.None));
+    }
+
+    /// <summary>
+    /// Deletes the selected resource.
+    /// </summary>
+    /// <param name="resource">The resource to delete.</param>
+    /// <returns>A task that represents the asynchronous operation.</returns>
+    private async Task DeleteResourceAsync(ResourceSummaryDto resource)
+    {
+        await RunResourceActionAsync(resource, () => ApiClient.DeleteResourceAsync(resource.Id, CancellationToken.None));
+    }
+
+    /// <summary>
+    /// Scales the selected resource to the desired replica count.
+    /// </summary>
+    /// <param name="resource">The resource to scale.</param>
+    /// <returns>A task that represents the asynchronous operation.</returns>
+    private async Task ScaleResourceAsync(ResourceSummaryDto resource)
+    {
+        int replicas = GetScaleTarget(resource);
+        await RunResourceActionAsync(resource, () => ApiClient.ScaleResourceAsync(resource.Id, replicas, CancellationToken.None));
+    }
+
+    /// <summary>
+    /// Executes a resource action and refreshes the overview.
+    /// </summary>
+    /// <param name="resource">The targeted resource.</param>
+    /// <param name="action">The action to execute.</param>
+    /// <returns>A task that represents the asynchronous operation.</returns>
+    private async Task RunResourceActionAsync<T>(ResourceSummaryDto resource, Func<Task<ApiResult<T>>> action)
+    {
+        BusyResources.Add(resource.Id);
+        ActionMessage = null;
+        IsActionError = false;
+
+        ApiResult<T> result = await action();
+        if (result.Success)
+        {
+            ActionMessage = "Action completed successfully.";
+            await LoadOverviewAsync();
+        }
+        else
+        {
+            ActionMessage = result.ErrorMessage ?? "Action failed.";
+            IsActionError = true;
+        }
+
+        BusyResources.Remove(resource.Id);
+    }
+
+    /// <summary>
+    /// Gets the scale target for a resource.
+    /// </summary>
+    /// <param name="resource">The resource to read.</param>
+    /// <returns>The scale target.</returns>
+    private int GetScaleTarget(ResourceSummaryDto resource)
+    {
+        if (!ScaleTargets.TryGetValue(resource.Id, out int replicas))
+        {
+            replicas = resource.CapacityProfile?.Replicas ?? 1;
+            ScaleTargets[resource.Id] = replicas;
+        }
+
+        return replicas;
+    }
+
+    /// <summary>
+    /// Updates the scale target for a resource.
+    /// </summary>
+    /// <param name="resource">The resource to update.</param>
+    /// <param name="value">The new value.</param>
+    private void UpdateScaleTarget(ResourceSummaryDto resource, object? value)
+    {
+        if (value is null)
+        {
+            return;
+        }
+
+        if (int.TryParse(value.ToString(), out int replicas) && replicas > 0)
+        {
+            ScaleTargets[resource.Id] = replicas;
+        }
+    }
+
+    /// <summary>
+    /// Determines whether a resource is busy with an action.
+    /// </summary>
+    /// <param name="resource">The resource to evaluate.</param>
+    /// <returns>True when the resource is busy; otherwise, false.</returns>
+    private bool IsResourceBusy(ResourceSummaryDto resource)
+    {
+        return BusyResources.Contains(resource.Id);
+    }
+
+    /// <summary>
+    /// Builds the capacity profile payload.
+    /// </summary>
+    /// <returns>The capacity profile DTO.</returns>
+    private CapacityProfileDto? BuildCapacityProfile()
+    {
+        return new CapacityProfileDto
+        {
+            CpuLimit = CreateModel.Capacity.CpuLimit,
+            MemoryLimit = CreateModel.Capacity.MemoryLimit,
+            Replicas = CreateModel.Capacity.Replicas < 1 ? 1 : CreateModel.Capacity.Replicas,
+            Notes = string.IsNullOrWhiteSpace(CreateModel.Capacity.Notes) ? null : CreateModel.Capacity.Notes,
+        };
+    }
+
+    /// <summary>
+    /// Builds the storage profile payload when required.
+    /// </summary>
+    /// <returns>The storage profile DTO.</returns>
+    private StorageProfileDto? BuildStorageProfile()
+    {
+        if (!RequiresStorage(CreateModel.ResourceType))
+        {
+            return null;
+        }
+
+        return new StorageProfileDto
+        {
+            VolumeName = CreateModel.Storage.VolumeName,
+            SizeGb = CreateModel.Storage.SizeGb,
+            MountPath = CreateModel.Storage.MountPath,
+            IsPersistent = CreateModel.Storage.IsPersistent,
+        };
+    }
+
+    /// <summary>
+    /// Builds the credential profile payload when required.
+    /// </summary>
+    /// <returns>The credential profile DTO.</returns>
+    private CredentialProfileDto? BuildCredentialProfile()
+    {
+        if (!RequiresCredentials(CreateModel.ResourceType))
+        {
+            return null;
+        }
+
+        return new CredentialProfileDto
+        {
+            Username = CreateModel.Credentials.Username,
+            Password = CreateModel.Credentials.Password,
+        };
+    }
+
+    /// <summary>
+    /// Builds the port policy payload.
+    /// </summary>
+    /// <param name="additionalPorts">Additional ports parsed from the wizard.</param>
+    /// <returns>The port policy DTO.</returns>
+    private PortPolicyDto? BuildPortPolicy(List<int> additionalPorts)
+    {
+        var ports = new List<int>();
+        if (CreateModel.PortMode == PortMode.Auto && ResourceDefaults.DefaultPorts.TryGetValue(CreateModel.ResourceType, out int[]? defaults))
+        {
+            ports.AddRange(defaults);
+        }
+
+        ports.AddRange(additionalPorts);
+
+        int[] exposed = ports.Distinct().ToArray();
+        return exposed.Length > 0
+            ? new PortPolicyDto { ExposedPorts = exposed }
+            : null;
+    }
+
+    /// <summary>
+    /// Parses a comma-separated port list into integers.
+    /// </summary>
+    /// <param name="value">The raw port list.</param>
+    /// <returns>The parsed ports.</returns>
+    private static List<int> ParsePorts(string? value)
+    {
+        var ports = new List<int>();
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return ports;
+        }
+
+        string[] parts = value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        foreach (string part in parts)
+        {
+            if (int.TryParse(part, out int port) && port > 0 && port <= 65535)
+            {
+                ports.Add(port);
+            }
+        }
+
+        return ports;
+    }
+
+    /// <summary>
+    /// Determines whether the resource type requires storage settings.
+    /// </summary>
+    /// <param name="resourceType">The resource type.</param>
+    /// <returns>True when storage is required; otherwise, false.</returns>
+    private static bool RequiresStorage(ResourceType resourceType)
+    {
+        return resourceType is ResourceType.Redis or ResourceType.Postgres or ResourceType.Mongo or ResourceType.Rabbit;
+    }
+
+    /// <summary>
+    /// Determines whether the resource type requires credentials.
+    /// </summary>
+    /// <param name="resourceType">The resource type.</param>
+    /// <returns>True when credentials are required; otherwise, false.</returns>
+    private static bool RequiresCredentials(ResourceType resourceType)
+    {
+        return resourceType is ResourceType.Postgres or ResourceType.Mongo or ResourceType.Rabbit;
+    }
+
+    /// <summary>
+    /// Renders a status badge for the resource state.
+    /// </summary>
+    /// <param name="state">The resource state.</param>
+    /// <returns>The rendered markup.</returns>
+    private MarkupString RenderStateBadge(ResourceState state)
+    {
+        string css = state switch
+        {
+            ResourceState.Running => "badge success",
+            ResourceState.Stopped => "badge danger",
+            ResourceState.Provisioning => "badge warning",
+            _ => "badge",
+        };
+
+        return new MarkupString($"<span class=\"{css}\">{state}</span>");
+    }
+
+    /// <summary>
+    /// Loads the environment overview from the API.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous operation.</returns>
+    private async Task LoadOverviewAsync()
+    {
+        IsLoading = true;
+        ErrorMessage = null;
+
+        ApiResult<EnvironmentOverviewDto> result = await ApiClient.GetEnvironmentOverviewAsync(EnvironmentId, CancellationToken.None);
+        if (result.Success && result.Value is not null)
+        {
+            Overview = result.Value;
+            SyncScaleTargets();
+        }
+        else
+        {
+            Overview = null;
+            ErrorMessage = result.ErrorMessage ?? "Unable to load environment overview.";
+        }
+
+        IsLoading = false;
+    }
+
+    /// <summary>
+    /// Synchronizes scale targets with the latest resource list.
+    /// </summary>
+    private void SyncScaleTargets()
+    {
+        if (Overview is null)
+        {
+            return;
+        }
+
+        foreach (ResourceSummaryDto resource in Overview.Resources)
+        {
+            if (!ScaleTargets.ContainsKey(resource.Id))
+            {
+                ScaleTargets[resource.Id] = resource.CapacityProfile?.Replicas ?? 1;
+            }
+        }
+
+        foreach (Guid key in ScaleTargets.Keys.ToList())
+        {
+            if (!Overview.Resources.Any(resource => resource.Id == key))
+            {
+                ScaleTargets.Remove(key);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Gets the title displayed for the environment.
+    /// </summary>
+    /// <returns>The formatted title.</returns>
+    private string GetEnvironmentTitle()
+    {
+        if (!string.IsNullOrWhiteSpace(Name))
+        {
+            return $"Environment · {Name}";
+        }
+
+        return Overview is null ? "Environment" : $"Environment · {Overview.Environment.Name}";
+    }
+
+    /// <summary>
+    /// Gets the label for the create resource button.
+    /// </summary>
+    /// <returns>The formatted button label.</returns>
+    private string GetCreateResourceLabel()
+    {
+        return IsCreatingResource ? "Deploying..." : "Create Resource";
+    }
+}

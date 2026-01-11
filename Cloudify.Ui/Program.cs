@@ -1,4 +1,5 @@
 using Cloudify.Ui.Options;
+using Cloudify.Ui.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -14,6 +15,7 @@ builder.Services.AddHttpClient("CloudifyApi", (serviceProvider, client) =>
     ApiClientOptions options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<ApiClientOptions>>().Value;
     client.BaseAddress = new Uri(options.BaseUrl, UriKind.Absolute);
 });
+builder.Services.AddScoped<CloudifyApiClient>();
 
 var app = builder.Build();
 

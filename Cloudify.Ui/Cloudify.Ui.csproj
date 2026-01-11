@@ -4,4 +4,8 @@
     <RootNamespace>Cloudify.Ui</RootNamespace>
     <AssemblyName>Cloudify.Ui</AssemblyName>
   </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Cloudify.Application\Cloudify.Application.csproj" />
+  </ItemGroup>
 </Project>

@@ -1,55 +1,258 @@
 @page "/"
-@inject IHttpClientFactory HttpClientFactory
+@page "/resource-groups"
+@inject CloudifyApiClient ApiClient
+@inject NavigationManager NavigationManager
 
-<h1>Cloudify Environments</h1>
+<div>
+    <h1 class="page-title">Resource Groups</h1>
+    <p class="page-subtitle">Manage Cloudify resource groups and their environments.</p>
+</div>
 
-@if (_isLoading)
-{
-    <p>Loading environments...</p>
-}
-else if (_environments.Count == 0)
-{
-    <p>No environments available.</p>
-}
-else
-{
-    <table class="table">
-        <thead>
-            <tr>
-                <th>Name</th>
-                <th>CPU</th>
-                <th>Memory (GB)</th>
-                <th>Storage (GB)</th>
-            </tr>
-        </thead>
-        <tbody>
-        @foreach (CloudEnvironmentView environment in _environments)
+<div class="grid grid-2">
+    <section class="card">
+        <div class="card-header">
+            <div>
+                <h2 class="card-title">Create Resource Group</h2>
+                <p class="card-subtitle">Provision a new logical container for environments.</p>
+            </div>
+        </div>
+        <EditForm Model="CreateModel" OnValidSubmit="HandleCreateAsync">
+            <div class="form-grid">
+                <div class="form-row">
+                    <label for="rg-name">Name</label>
+                    <InputText id="rg-name" @bind-Value="CreateModel.Name" placeholder="e.g. payments-core" />
+                </div>
+                <div class="form-row">
+                    <label>Tags</label>
+                    <div class="form-grid">
+                        @foreach (TagEntryModel tag in CreateModel.Tags)
+                        {
+                            <div class="grid grid-2">
+                                <InputText @bind-Value="tag.Key" placeholder="key" />
+                                <InputText @bind-Value="tag.Value" placeholder="value" />
+                            </div>
+                            <button class="button ghost" type="button" @onclick="() => RemoveTag(tag)">Remove tag</button>
+                        }
+                        <button class="button secondary" type="button" @onclick="AddTag">Add tag</button>
+                    </div>
+                </div>
+                <div class="inline-actions">
+                    <button class="button" type="submit" disabled="@IsSaving">@GetCreateButtonLabel()</button>
+                </div>
+            </div>
+        </EditForm>
+        @if (!string.IsNullOrWhiteSpace(SuccessMessage))
         {
-            <tr>
-                <td>@environment.Name</td>
-                <td>@environment.CpuCores</td>
-                <td>@environment.MemoryGb</td>
-                <td>@environment.StorageGb</td>
-            </tr>
+            <div class="state-panel success">@SuccessMessage</div>
         }
-        </tbody>
-    </table>
-}
+        @if (!string.IsNullOrWhiteSpace(ErrorMessage))
+        {
+            <div class="state-panel error">@ErrorMessage</div>
+        }
+    </section>
+
+    <section class="card">
+        <div class="card-header">
+            <div>
+                <h2 class="card-title">Resource Groups</h2>
+                <p class="card-subtitle">Track environments and provisioning status.</p>
+            </div>
+            <button class="button ghost" type="button" @onclick="ReloadAsync">Refresh</button>
+        </div>
+        @if (IsLoading)
+        {
+            <div class="state-panel">Loading resource groups...</div>
+        }
+        else if (ResourceGroups.Count == 0)
+        {
+            <div class="state-panel">No resource groups available yet.</div>
+        }
+        else
+        {
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Created</th>
+                        <th>Tags</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (ResourceGroupSummaryDto group in ResourceGroups)
+                {
+                    <tr>
+                        <td>@group.Name</td>
+                        <td>@group.CreatedAt.ToLocalTime().ToString("g")</td>
+                        <td>
+                            <div class="tag-list">
+                                @foreach (KeyValuePair<string, string> tag in group.Tags)
+                                {
+                                    <span class="tag">@tag.Key=@tag.Value</span>
+                                }
+                            </div>
+                        </td>
+                        <td>
+                            <div class="inline-actions">
+                                <button class="button" type="button" @onclick="() => NavigateToGroup(group)">View</button>
+                            </div>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        }
+    </section>
+</div>
 
 @code {
-    private readonly List<CloudEnvironmentView> _environments = new();
-    private bool _isLoading = true;
+    /// <summary>
+    /// Gets the create form model for resource groups.
+    /// </summary>
+    private ResourceGroupCreateModel CreateModel { get; } = new();
 
+    /// <summary>
+    /// Gets the list of loaded resource groups.
+    /// </summary>
+    private List<ResourceGroupSummaryDto> ResourceGroups { get; } = new();
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the page is loading data.
+    /// </summary>
+    private bool IsLoading { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the create action is running.
+    /// </summary>
+    private bool IsSaving { get; set; }
+
+    /// <summary>
+    /// Gets or sets the error message displayed to the user.
+    /// </summary>
+    private string? ErrorMessage { get; set; }
+
+    /// <summary>
+    /// Gets or sets the success message displayed to the user.
+    /// </summary>
+    private string? SuccessMessage { get; set; }
+
+    /// <summary>
+    /// Loads the resource group list when the component initializes.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous operation.</returns>
     protected override async Task OnInitializedAsync()
     {
-        HttpClient client = HttpClientFactory.CreateClient("CloudifyApi");
-        IReadOnlyList<CloudEnvironmentView>? environments = await client.GetFromJsonAsync<IReadOnlyList<CloudEnvironmentView>>("api/environments");
+        CreateModel.Tags.Add(new TagEntryModel());
+        await LoadGroupsAsync();
+    }
 
-        if (environments is not null)
+    /// <summary>
+    /// Reloads resource groups on demand.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous operation.</returns>
+    private async Task ReloadAsync()
+    {
+        await LoadGroupsAsync();
+    }
+
+    /// <summary>
+    /// Adds a new tag row to the create form.
+    /// </summary>
+    private void AddTag()
+    {
+        CreateModel.Tags.Add(new TagEntryModel());
+    }
+
+    /// <summary>
+    /// Removes a tag row from the create form.
+    /// </summary>
+    /// <param name="tag">The tag row to remove.</param>
+    private void RemoveTag(TagEntryModel tag)
+    {
+        CreateModel.Tags.Remove(tag);
+    }
+
+    /// <summary>
+    /// Handles the resource group creation workflow.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous operation.</returns>
+    private async Task HandleCreateAsync()
+    {
+        if (string.IsNullOrWhiteSpace(CreateModel.Name))
         {
-            _environments.AddRange(environments);
+            ErrorMessage = "Resource group name is required.";
+            SuccessMessage = null;
+            return;
         }
 
-        _isLoading = false;
+        IsSaving = true;
+        ErrorMessage = null;
+        SuccessMessage = null;
+
+        var request = new CreateResourceGroupRequest
+        {
+            Name = CreateModel.Name,
+            Tags = CreateModel.Tags
+                .Where(tag => !string.IsNullOrWhiteSpace(tag.Key))
+                .ToDictionary(tag => tag.Key, tag => tag.Value ?? string.Empty),
+        };
+
+        ApiResult<ResourceGroupSummaryDto> result = await ApiClient.CreateResourceGroupAsync(request, CancellationToken.None);
+        if (result.Success && result.Value is not null)
+        {
+            ResourceGroups.Insert(0, result.Value);
+            SuccessMessage = "Resource group created successfully.";
+            CreateModel.Reset();
+            CreateModel.Tags.Add(new TagEntryModel());
+        }
+        else
+        {
+            ErrorMessage = result.ErrorMessage ?? "Unable to create the resource group.";
+        }
+
+        IsSaving = false;
+    }
+
+    /// <summary>
+    /// Navigates to the selected resource group detail page.
+    /// </summary>
+    /// <param name="group">The selected resource group.</param>
+    private void NavigateToGroup(ResourceGroupSummaryDto group)
+    {
+        string url = $"/resource-groups/{group.Id}?name={Uri.EscapeDataString(group.Name)}";
+        NavigationManager.NavigateTo(url);
+    }
+
+    /// <summary>
+    /// Loads resource groups from the API.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous operation.</returns>
+    private async Task LoadGroupsAsync()
+    {
+        IsLoading = true;
+        ErrorMessage = null;
+        SuccessMessage = null;
+
+        ApiResult<IReadOnlyList<ResourceGroupSummaryDto>> result = await ApiClient.ListResourceGroupsAsync(CancellationToken.None);
+        ResourceGroups.Clear();
+        if (result.Success && result.Value is not null)
+        {
+            ResourceGroups.AddRange(result.Value.OrderByDescending(group => group.CreatedAt));
+        }
+        else
+        {
+            ErrorMessage = result.ErrorMessage ?? "Unable to load resource groups.";
+        }
+
+        IsLoading = false;
+    }
+
+    /// <summary>
+    /// Gets the label used for the create button.
+    /// </summary>
+    /// <returns>The formatted button label.</returns>
+    private string GetCreateButtonLabel()
+    {
+        return IsSaving ? "Creating..." : "Create Resource Group";
     }
 }

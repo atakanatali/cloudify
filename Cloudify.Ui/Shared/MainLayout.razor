@@ -1,13 +1,27 @@
 @inherits LayoutComponentBase
 
-<div class="page">
-    <div class="sidebar">
+<div class="app-shell">
+    <aside class="sidebar">
+        <div class="brand">
+            <span class="brand-mark">C</span>
+            <div>
+                <div class="brand-name">Cloudify</div>
+                <div class="brand-subtitle">Resource Console</div>
+            </div>
+        </div>
         <NavMenu />
-    </div>
+    </aside>
 
-    <main>
-        <article class="content px-4">
+    <div class="main">
+        <header class="topbar">
+            <div class="topbar-title">Cloud Operations</div>
+            <div class="topbar-actions">
+                <div class="status-chip">API Connected</div>
+                <div class="avatar">CF</div>
+            </div>
+        </header>
+        <main class="content">
             @Body
-        </article>
-    </main>
+        </main>
+    </div>
 </div>
