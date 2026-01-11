@@ -24,6 +24,7 @@ builder.Services.AddSingleton<IEnvironmentRepository, InMemoryEnvironmentReposit
 builder.Services.AddScoped<IEnvironmentService, EnvironmentService>();
 builder.Services.AddSingleton<ProcessRunner>();
 builder.Services.AddScoped<IOrchestrator, DockerComposeOrchestrator>();
+builder.Services.AddScoped<ITemplateRenderer, DockerComposeTemplateRenderer>();
 
 var app = builder.Build();
 

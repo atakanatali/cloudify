@@ -48,6 +48,11 @@ public sealed class CloudifyDbContext : DbContext
     public DbSet<StorageProfileRecord> StorageProfiles => Set<StorageProfileRecord>();
 
     /// <summary>
+    /// Gets the credential profile records.
+    /// </summary>
+    public DbSet<CredentialProfileRecord> CredentialProfiles => Set<CredentialProfileRecord>();
+
+    /// <summary>
     /// Gets the resource port policy records.
     /// </summary>
     public DbSet<ResourcePortPolicyRecord> ResourcePortPolicies => Set<ResourcePortPolicyRecord>();
@@ -111,6 +116,7 @@ public sealed class CloudifyDbContext : DbContext
             entity.Property(record => record.ResourceType).HasConversion<int>().IsRequired();
             entity.Property(record => record.State).HasConversion<int>().IsRequired();
             entity.Property(record => record.CreatedAt).IsRequired();
+            entity.Property(record => record.AppImage).HasMaxLength(500);
             entity.HasIndex(record => new { record.EnvironmentId, record.Name }).IsUnique();
             entity.HasOne(record => record.Environment)
                 .WithMany(environment => environment.Resources)
@@ -123,6 +129,10 @@ public sealed class CloudifyDbContext : DbContext
             entity.HasMany(record => record.AllocatedPorts)
                 .WithOne(port => port.Resource)
                 .HasForeignKey(port => port.ResourceId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(record => record.CredentialProfile)
+                .WithOne(profile => profile.Resource)
+                .HasForeignKey<CredentialProfileRecord>(profile => profile.ResourceId)
                 .OnDelete(DeleteBehavior.Cascade);
             entity.HasDiscriminator(record => record.ResourceType)
                 .HasValue<RedisResourceRecord>(Cloudify.Domain.Models.ResourceType.Redis)
@@ -154,6 +164,18 @@ public sealed class CloudifyDbContext : DbContext
             entity.HasOne(record => record.Resource)
                 .WithOne(resource => resource.StorageProfile)
                 .HasForeignKey<StorageProfileRecord>(record => record.ResourceId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<CredentialProfileRecord>(entity =>
+        {
+            entity.ToTable("CredentialProfiles");
+            entity.HasKey(record => record.ResourceId);
+            entity.Property(record => record.Username).HasMaxLength(200).IsRequired();
+            entity.Property(record => record.Password).HasMaxLength(500).IsRequired();
+            entity.HasOne(record => record.Resource)
+                .WithOne(resource => resource.CredentialProfile)
+                .HasForeignKey<CredentialProfileRecord>(record => record.ResourceId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 

@@ -89,6 +89,7 @@ public sealed class ScaleResourceHandler : IScaleResourceHandler
                 postgres.CreatedAt,
                 capacityProfile,
                 postgres.StorageProfile,
+                postgres.CredentialProfile,
                 postgres.PortPolicy),
             MongoResource mongo => new MongoResource(
                 mongo.Id,
@@ -98,6 +99,7 @@ public sealed class ScaleResourceHandler : IScaleResourceHandler
                 mongo.CreatedAt,
                 capacityProfile,
                 mongo.StorageProfile,
+                mongo.CredentialProfile,
                 mongo.PortPolicy),
             RabbitResource rabbit => new RabbitResource(
                 rabbit.Id,
@@ -107,6 +109,7 @@ public sealed class ScaleResourceHandler : IScaleResourceHandler
                 rabbit.CreatedAt,
                 capacityProfile,
                 rabbit.StorageProfile,
+                rabbit.CredentialProfile,
                 rabbit.PortPolicy),
             AppServiceResource app => new AppServiceResource(
                 app.Id,
@@ -115,6 +118,7 @@ public sealed class ScaleResourceHandler : IScaleResourceHandler
                 app.State,
                 app.CreatedAt,
                 capacityProfile,
+                app.Image,
                 app.PortPolicy),
             _ => throw new InvalidOperationException("Unsupported resource type."),
         };

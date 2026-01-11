@@ -33,6 +33,16 @@ public sealed class AddResourceRequest
     public StorageProfileDto? StorageProfile { get; set; }
 
     /// <summary>
+    /// Gets or sets the credential profile for services that require authentication.
+    /// </summary>
+    public CredentialProfileDto? CredentialProfile { get; set; }
+
+    /// <summary>
+    /// Gets or sets the container image for application services.
+    /// </summary>
+    public string? Image { get; set; }
+
+    /// <summary>
     /// Gets or sets the port policy.
     /// </summary>
     public PortPolicyDto? PortPolicy { get; set; }

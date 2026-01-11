@@ -6,6 +6,11 @@ namespace Cloudify.Domain.Models;
 public sealed class AppServiceResource : Resource
 {
     /// <summary>
+    /// Gets the container image for the application service.
+    /// </summary>
+    public string Image { get; }
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="AppServiceResource"/> class.
     /// </summary>
     /// <param name="id">The resource identifier.</param>
@@ -14,7 +19,9 @@ public sealed class AppServiceResource : Resource
     /// <param name="state">The resource state.</param>
     /// <param name="createdAt">The creation timestamp.</param>
     /// <param name="capacityProfile">The capacity profile.</param>
+    /// <param name="image">The container image to deploy.</param>
     /// <param name="portPolicy">The port policy.</param>
+    /// <exception cref="ArgumentException">Thrown when the image is empty.</exception>
     public AppServiceResource(
         Guid id,
         Guid environmentId,
@@ -22,8 +29,15 @@ public sealed class AppServiceResource : Resource
         ResourceState state,
         DateTimeOffset createdAt,
         CapacityProfile? capacityProfile,
+        string image,
         PortPolicy? portPolicy)
         : base(id, environmentId, name, ResourceType.AppService, state, createdAt, capacityProfile, portPolicy)
     {
+        if (string.IsNullOrWhiteSpace(image))
+        {
+            throw new ArgumentException("Image is required.", nameof(image));
+        }
+
+        Image = image;
     }
 }

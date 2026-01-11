@@ -51,4 +51,9 @@ public sealed class ResourceSummaryDto
     /// Gets or sets the port policy.
     /// </summary>
     public PortPolicyDto? PortPolicy { get; set; }
+
+    /// <summary>
+    /// Gets or sets the computed connection info for the resource.
+    /// </summary>
+    public ConnectionInfoDto? ConnectionInfo { get; set; }
 }

@@ -90,6 +90,7 @@ public sealed class StateStoreIntegrationTests
 
         var capacityProfile = new CapacityProfile(2, 4, 2, "scale-test");
         var storageProfile = new StorageProfile("pg-data", 20, "/var/lib/postgresql/data", true);
+        var credentialProfile = new CredentialProfile("admin", "test-password");
         var portPolicy = new PortPolicy(new[] { 5432, 5433 });
 
         var resource = new PostgresResource(
@@ -100,6 +101,7 @@ public sealed class StateStoreIntegrationTests
             DateTimeOffset.UtcNow,
             capacityProfile,
             storageProfile,
+            credentialProfile,
             portPolicy);
 
         await stateStore.AddResourceAsync(resource, CancellationToken.None);
@@ -114,6 +116,7 @@ public sealed class StateStoreIntegrationTests
 
         var fetchedPostgres = (PostgresResource)fetched;
         Assert.Equal(storageProfile.VolumeName, fetchedPostgres.StorageProfile.VolumeName);
+        Assert.Equal(credentialProfile.Username, fetchedPostgres.CredentialProfile.Username);
         Assert.Equal(capacityProfile.Replicas, fetchedPostgres.CapacityProfile!.Replicas);
         Assert.NotNull(fetchedPostgres.PortPolicy);
         Assert.Contains(5432, fetchedPostgres.PortPolicy!.ExposedPorts);

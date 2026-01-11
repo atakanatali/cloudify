@@ -11,6 +11,11 @@ public sealed class PostgresResource : Resource
     public StorageProfile StorageProfile { get; }
 
     /// <summary>
+    /// Gets the credential profile for the PostgreSQL resource.
+    /// </summary>
+    public CredentialProfile CredentialProfile { get; }
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="PostgresResource"/> class.
     /// </summary>
     /// <param name="id">The resource identifier.</param>
@@ -20,8 +25,9 @@ public sealed class PostgresResource : Resource
     /// <param name="createdAt">The creation timestamp.</param>
     /// <param name="capacityProfile">The capacity profile.</param>
     /// <param name="storageProfile">The storage profile.</param>
+    /// <param name="credentialProfile">The credential profile.</param>
     /// <param name="portPolicy">The port policy.</param>
-    /// <exception cref="ArgumentNullException">Thrown when the storage profile is null.</exception>
+    /// <exception cref="ArgumentNullException">Thrown when the storage profile or credential profile is null.</exception>
     public PostgresResource(
         Guid id,
         Guid environmentId,
@@ -30,9 +36,11 @@ public sealed class PostgresResource : Resource
         DateTimeOffset createdAt,
         CapacityProfile? capacityProfile,
         StorageProfile storageProfile,
+        CredentialProfile credentialProfile,
         PortPolicy? portPolicy)
         : base(id, environmentId, name, ResourceType.Postgres, state, createdAt, capacityProfile, portPolicy)
     {
         StorageProfile = storageProfile ?? throw new ArgumentNullException(nameof(storageProfile));
+        CredentialProfile = credentialProfile ?? throw new ArgumentNullException(nameof(credentialProfile));
     }
 }

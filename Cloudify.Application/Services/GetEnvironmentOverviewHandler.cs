@@ -53,6 +53,13 @@ public sealed class GetEnvironmentOverviewHandler : IGetEnvironmentOverviewHandl
         string composeYaml = await _templateRenderer.RenderEnvironmentComposeAsync(environment.Id, cancellationToken);
         HostProfileDto hostProfile = await _systemProfileProvider.GetHostProfileAsync(cancellationToken);
 
+        var connectionInfoLookup = new Dictionary<Guid, ConnectionInfoDto?>();
+        foreach (Resource resource in resources)
+        {
+            IReadOnlyList<int> ports = await _stateStore.ListResourcePortsAsync(environment.Id, resource.Id, cancellationToken);
+            connectionInfoLookup[resource.Id] = BuildConnectionInfo(ports);
+        }
+
         var overview = new EnvironmentOverviewDto
         {
             Environment = new EnvironmentSummaryDto
@@ -64,7 +71,8 @@ public sealed class GetEnvironmentOverviewHandler : IGetEnvironmentOverviewHandl
                 BaseDomain = environment.BaseDomain,
                 CreatedAt = environment.CreatedAt,
             },
-            Resources = resources.Select(MapResource).ToArray(),
+            Resources = resources.Select(resource =>
+                MapResource(resource, connectionInfoLookup.TryGetValue(resource.Id, out ConnectionInfoDto? info) ? info : null)).ToArray(),
             ComposeYaml = composeYaml,
             HostProfile = hostProfile,
         };
@@ -79,8 +87,9 @@ public sealed class GetEnvironmentOverviewHandler : IGetEnvironmentOverviewHandl
     /// Maps a resource to a summary DTO.
     /// </summary>
     /// <param name="resource">The resource.</param>
+    /// <param name="connectionInfo">The connection info.</param>
     /// <returns>The resource summary DTO.</returns>
-    private static ResourceSummaryDto MapResource(Resource resource)
+    private static ResourceSummaryDto MapResource(Resource resource, ConnectionInfoDto? connectionInfo)
     {
         return new ResourceSummaryDto
         {
@@ -106,6 +115,7 @@ public sealed class GetEnvironmentOverviewHandler : IGetEnvironmentOverviewHandl
                 {
                     ExposedPorts = resource.PortPolicy.ExposedPorts.ToArray(),
                 },
+            ConnectionInfo = connectionInfo,
         };
     }
 
@@ -147,6 +157,26 @@ public sealed class GetEnvironmentOverviewHandler : IGetEnvironmentOverviewHandl
                 IsPersistent = rabbit.StorageProfile.IsPersistent,
             },
             _ => null,
+        };
+    }
+
+    /// <summary>
+    /// Builds the connection info for the resource from the allocated ports.
+    /// </summary>
+    /// <param name="allocatedPorts">The allocated host ports.</param>
+    /// <returns>The connection info when ports are available; otherwise, null.</returns>
+    private static ConnectionInfoDto? BuildConnectionInfo(IReadOnlyList<int> allocatedPorts)
+    {
+        if (allocatedPorts.Count == 0)
+        {
+            return null;
+        }
+
+        int port = allocatedPorts.OrderBy(port => port).First();
+        return new ConnectionInfoDto
+        {
+            Host = "localhost",
+            Port = port,
         };
     }
 }
