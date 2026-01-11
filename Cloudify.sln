@@ -14,6 +14,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Cloudify.Ui", "Cloudify.Ui\
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Cloudify.Domain.Tests", "Cloudify.Domain.Tests\\Cloudify.Domain.Tests.csproj", "{3D0D9359-121F-4035-9B71-360C171B6EB8}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Cloudify.Infrastructure.Tests", "Cloudify.Infrastructure.Tests\\Cloudify.Infrastructure.Tests.csproj", "{CBF1F117-5E07-40F2-AA95-4CE6F3987D0E}"
+EndProject
 Global
     GlobalSection(SolutionConfigurationPlatforms) = preSolution
         Debug|Any CPU = Debug|Any CPU
@@ -44,5 +46,9 @@ Global
         {3D0D9359-121F-4035-9B71-360C171B6EB8}.Debug|Any CPU.Build.0 = Debug|Any CPU
         {3D0D9359-121F-4035-9B71-360C171B6EB8}.Release|Any CPU.ActiveCfg = Release|Any CPU
         {3D0D9359-121F-4035-9B71-360C171B6EB8}.Release|Any CPU.Build.0 = Release|Any CPU
+        {CBF1F117-5E07-40F2-AA95-4CE6F3987D0E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+        {CBF1F117-5E07-40F2-AA95-4CE6F3987D0E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+        {CBF1F117-5E07-40F2-AA95-4CE6F3987D0E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+        {CBF1F117-5E07-40F2-AA95-4CE6F3987D0E}.Release|Any CPU.Build.0 = Release|Any CPU
     EndGlobalSection
 EndGlobal
