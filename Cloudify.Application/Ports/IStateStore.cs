@@ -108,6 +108,15 @@ public interface IStateStore
     Task<IReadOnlyList<int>> ListAllocatedPortsAsync(Guid environmentId, CancellationToken cancellationToken);
 
     /// <summary>
+    /// Lists allocated ports for a resource within an environment.
+    /// </summary>
+    /// <param name="environmentId">The environment identifier.</param>
+    /// <param name="resourceId">The resource identifier.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The allocated ports for the resource.</returns>
+    Task<IReadOnlyList<int>> ListResourcePortsAsync(Guid environmentId, Guid resourceId, CancellationToken cancellationToken);
+
+    /// <summary>
     /// Removes ports assigned to a resource.
     /// </summary>
     /// <param name="environmentId">The environment identifier.</param>

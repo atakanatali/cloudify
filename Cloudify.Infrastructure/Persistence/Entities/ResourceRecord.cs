@@ -48,6 +48,11 @@ public abstract class ResourceRecord
     public StorageProfileRecord? StorageProfile { get; set; }
 
     /// <summary>
+    /// Gets or sets the optional credential profile record for the resource.
+    /// </summary>
+    public CredentialProfileRecord? CredentialProfile { get; set; }
+
+    /// <summary>
     /// Gets or sets the declared port policy records for the resource.
     /// </summary>
     public List<ResourcePortPolicyRecord> PortPolicies { get; set; } = new();
@@ -61,6 +66,11 @@ public abstract class ResourceRecord
     /// Gets or sets the owning environment navigation.
     /// </summary>
     public EnvironmentRecord? Environment { get; set; }
+
+    /// <summary>
+    /// Gets or sets the container image for application services.
+    /// </summary>
+    public string? AppImage { get; set; }
 }
 
 /// <summary>

@@ -66,6 +66,16 @@ public sealed class AddResourceHandler : IAddResourceHandler
             return Result<AddResourceResponse>.Fail(ErrorCodes.ValidationFailed, storageError ?? "Invalid storage profile.");
         }
 
+        if (!TryBuildCredentialProfile(request.ResourceType, request.CredentialProfile, out CredentialProfile? credentialProfile, out string? credentialError))
+        {
+            return Result<AddResourceResponse>.Fail(ErrorCodes.ValidationFailed, credentialError ?? "Invalid credential profile.");
+        }
+
+        if (request.ResourceType == ResourceType.AppService && string.IsNullOrWhiteSpace(request.Image))
+        {
+            return Result<AddResourceResponse>.Fail(ErrorCodes.ValidationFailed, "Application service image is required.");
+        }
+
         Environment? environment = await _stateStore.GetEnvironmentAsync(request.EnvironmentId, cancellationToken);
         if (environment is null)
         {
@@ -85,7 +95,7 @@ public sealed class AddResourceHandler : IAddResourceHandler
 
         PortPolicy? portPolicy = ports.Count > 0 ? new PortPolicy(ports) : null;
 
-        Resource resource = CreateResource(request, capacityProfile, storageProfile, portPolicy);
+        Resource resource = CreateResource(request, capacityProfile, storageProfile, credentialProfile, portPolicy);
         await _stateStore.AddResourceAsync(resource, cancellationToken);
 
         if (allocation is not null && allocation.Port > 0)
@@ -93,9 +103,11 @@ public sealed class AddResourceHandler : IAddResourceHandler
             await _stateStore.AssignPortAsync(request.EnvironmentId, resource.Id, allocation.Port, cancellationToken);
         }
 
+        ConnectionInfoDto? connectionInfo = BuildConnectionInfo(allocation?.Port);
+
         return Result<AddResourceResponse>.Ok(new AddResourceResponse
         {
-            Resource = MapResource(resource),
+            Resource = MapResource(resource, connectionInfo),
         });
     }
 
@@ -196,17 +208,64 @@ public sealed class AddResourceHandler : IAddResourceHandler
     }
 
     /// <summary>
+    /// Attempts to build a credential profile from the DTO.
+    /// </summary>
+    /// <param name="resourceType">The resource type.</param>
+    /// <param name="dto">The credential profile DTO.</param>
+    /// <param name="profile">The resulting credential profile.</param>
+    /// <param name="error">The validation error message, if any.</param>
+    /// <returns>True when the profile is valid; otherwise, false.</returns>
+    private static bool TryBuildCredentialProfile(
+        ResourceType resourceType,
+        CredentialProfileDto? dto,
+        out CredentialProfile? profile,
+        out string? error)
+    {
+        profile = null;
+        error = null;
+
+        bool requiresCredentials = resourceType is ResourceType.Postgres or ResourceType.Mongo or ResourceType.Rabbit;
+        if (!requiresCredentials)
+        {
+            return true;
+        }
+
+        if (dto is null)
+        {
+            error = "Credential profile is required for the selected resource type.";
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(dto.Username))
+        {
+            error = "Credential username is required.";
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(dto.Password))
+        {
+            error = "Credential password is required.";
+            return false;
+        }
+
+        profile = new CredentialProfile(dto.Username, dto.Password);
+        return true;
+    }
+
+    /// <summary>
     /// Creates a resource instance based on the request.
     /// </summary>
     /// <param name="request">The add resource request.</param>
     /// <param name="capacityProfile">The capacity profile.</param>
     /// <param name="storageProfile">The storage profile.</param>
+    /// <param name="credentialProfile">The credential profile.</param>
     /// <param name="portPolicy">The port policy.</param>
     /// <returns>The created resource.</returns>
     private static Resource CreateResource(
         AddResourceRequest request,
         CapacityProfile? capacityProfile,
         StorageProfile? storageProfile,
+        CredentialProfile? credentialProfile,
         PortPolicy? portPolicy)
     {
         DateTimeOffset createdAt = DateTimeOffset.UtcNow;
@@ -229,6 +288,7 @@ public sealed class AddResourceHandler : IAddResourceHandler
                 createdAt,
                 capacityProfile,
                 storageProfile!,
+                credentialProfile!,
                 portPolicy),
             ResourceType.Mongo => new MongoResource(
                 Guid.NewGuid(),
@@ -238,6 +298,7 @@ public sealed class AddResourceHandler : IAddResourceHandler
                 createdAt,
                 capacityProfile,
                 storageProfile!,
+                credentialProfile!,
                 portPolicy),
             ResourceType.Rabbit => new RabbitResource(
                 Guid.NewGuid(),
@@ -247,6 +308,7 @@ public sealed class AddResourceHandler : IAddResourceHandler
                 createdAt,
                 capacityProfile,
                 storageProfile!,
+                credentialProfile!,
                 portPolicy),
             ResourceType.AppService => new AppServiceResource(
                 Guid.NewGuid(),
@@ -255,6 +317,7 @@ public sealed class AddResourceHandler : IAddResourceHandler
                 ResourceState.Provisioning,
                 createdAt,
                 capacityProfile,
+                request.Image!,
                 portPolicy),
             _ => throw new InvalidOperationException("Unsupported resource type."),
         };
@@ -264,8 +327,9 @@ public sealed class AddResourceHandler : IAddResourceHandler
     /// Maps a resource to a summary DTO.
     /// </summary>
     /// <param name="resource">The resource.</param>
+    /// <param name="connectionInfo">The connection info.</param>
     /// <returns>The resource summary DTO.</returns>
-    private static ResourceSummaryDto MapResource(Resource resource)
+    private static ResourceSummaryDto MapResource(Resource resource, ConnectionInfoDto? connectionInfo)
     {
         return new ResourceSummaryDto
         {
@@ -291,6 +355,7 @@ public sealed class AddResourceHandler : IAddResourceHandler
                 {
                     ExposedPorts = resource.PortPolicy.ExposedPorts.ToArray(),
                 },
+            ConnectionInfo = connectionInfo,
         };
     }
 
@@ -332,6 +397,25 @@ public sealed class AddResourceHandler : IAddResourceHandler
                 IsPersistent = rabbit.StorageProfile.IsPersistent,
             },
             _ => null,
+        };
+    }
+
+    /// <summary>
+    /// Builds the connection info from the allocated port when available.
+    /// </summary>
+    /// <param name="allocatedPort">The allocated host port.</param>
+    /// <returns>The connection info when a port is provided; otherwise, null.</returns>
+    private static ConnectionInfoDto? BuildConnectionInfo(int? allocatedPort)
+    {
+        if (!allocatedPort.HasValue || allocatedPort.Value <= 0)
+        {
+            return null;
+        }
+
+        return new ConnectionInfoDto
+        {
+            Host = "localhost",
+            Port = allocatedPort.Value,
         };
     }
 }

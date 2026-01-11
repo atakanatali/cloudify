@@ -134,6 +134,7 @@ public sealed class EfStateStore : IStateStore
             .AsNoTracking()
             .Include(resource => resource.CapacityProfile)
             .Include(resource => resource.StorageProfile)
+            .Include(resource => resource.CredentialProfile)
             .Include(resource => resource.PortPolicies)
             .FirstOrDefaultAsync(resource => resource.Id == resourceId, cancellationToken);
 
@@ -148,6 +149,7 @@ public sealed class EfStateStore : IStateStore
             .Where(resource => resource.EnvironmentId == environmentId)
             .Include(resource => resource.CapacityProfile)
             .Include(resource => resource.StorageProfile)
+            .Include(resource => resource.CredentialProfile)
             .Include(resource => resource.PortPolicies)
             .OrderBy(resource => resource.CreatedAt)
             .ToListAsync(cancellationToken);
@@ -166,6 +168,7 @@ public sealed class EfStateStore : IStateStore
         ResourceRecord? record = await _dbContext.Resources
             .Include(existing => existing.CapacityProfile)
             .Include(existing => existing.StorageProfile)
+            .Include(existing => existing.CredentialProfile)
             .Include(existing => existing.PortPolicies)
             .FirstOrDefaultAsync(existing => existing.Id == resource.Id, cancellationToken);
 
@@ -179,9 +182,11 @@ public sealed class EfStateStore : IStateStore
         record.ResourceType = resource.ResourceType;
         record.State = resource.State;
         record.CreatedAt = resource.CreatedAt;
+        record.AppImage = resource is AppServiceResource appService ? appService.Image : null;
 
         ApplyCapacityProfile(record, resource);
         ApplyStorageProfile(record, resource);
+        ApplyCredentialProfile(record, resource);
         ApplyPortPolicies(record, resource);
 
         await _dbContext.SaveChangesAsync(cancellationToken);
@@ -232,6 +237,19 @@ public sealed class EfStateStore : IStateStore
         List<int> ports = await _dbContext.ResourcePorts
             .AsNoTracking()
             .Where(port => port.EnvironmentId == environmentId)
+            .OrderBy(port => port.Port)
+            .Select(port => port.Port)
+            .ToListAsync(cancellationToken);
+
+        return ports;
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<int>> ListResourcePortsAsync(Guid environmentId, Guid resourceId, CancellationToken cancellationToken)
+    {
+        List<int> ports = await _dbContext.ResourcePorts
+            .AsNoTracking()
+            .Where(port => port.EnvironmentId == environmentId && port.ResourceId == resourceId)
             .OrderBy(port => port.Port)
             .Select(port => port.Port)
             .ToListAsync(cancellationToken);
@@ -311,6 +329,10 @@ public sealed class EfStateStore : IStateStore
                 record.StorageProfile.MountPath,
                 record.StorageProfile.IsPersistent);
 
+        CredentialProfile? credentialProfile = record.CredentialProfile is null
+            ? null
+            : new CredentialProfile(record.CredentialProfile.Username, record.CredentialProfile.Password);
+
         return record.ResourceType switch
         {
             ResourceType.Redis => new RedisResource(
@@ -330,6 +352,7 @@ public sealed class EfStateStore : IStateStore
                 record.CreatedAt,
                 capacityProfile,
                 storageProfile ?? throw new InvalidOperationException("Storage profile is required for PostgreSQL resources."),
+                credentialProfile ?? throw new InvalidOperationException("Credential profile is required for PostgreSQL resources."),
                 portPolicy),
             ResourceType.Mongo => new MongoResource(
                 record.Id,
@@ -339,6 +362,7 @@ public sealed class EfStateStore : IStateStore
                 record.CreatedAt,
                 capacityProfile,
                 storageProfile ?? throw new InvalidOperationException("Storage profile is required for MongoDB resources."),
+                credentialProfile ?? throw new InvalidOperationException("Credential profile is required for MongoDB resources."),
                 portPolicy),
             ResourceType.Rabbit => new RabbitResource(
                 record.Id,
@@ -348,6 +372,7 @@ public sealed class EfStateStore : IStateStore
                 record.CreatedAt,
                 capacityProfile,
                 storageProfile ?? throw new InvalidOperationException("Storage profile is required for RabbitMQ resources."),
+                credentialProfile ?? throw new InvalidOperationException("Credential profile is required for RabbitMQ resources."),
                 portPolicy),
             ResourceType.AppService => new AppServiceResource(
                 record.Id,
@@ -356,6 +381,7 @@ public sealed class EfStateStore : IStateStore
                 record.State,
                 record.CreatedAt,
                 capacityProfile,
+                record.AppImage ?? throw new InvalidOperationException("Application image is required for application services."),
                 portPolicy),
             _ => throw new InvalidOperationException("Unsupported resource type.")
         };
@@ -400,8 +426,10 @@ public sealed class EfStateStore : IStateStore
         record.ResourceType = resource.ResourceType;
         record.State = resource.State;
         record.CreatedAt = resource.CreatedAt;
+        record.AppImage = resource is AppServiceResource appService ? appService.Image : null;
         record.CapacityProfile = MapCapacityProfileRecord(resource, resource.Id);
         record.StorageProfile = MapStorageProfileRecord(resource, resource.Id);
+        record.CredentialProfile = MapCredentialProfileRecord(resource, resource.Id);
         record.PortPolicies = MapPortPolicyRecords(resource, resource.Id);
 
         return record;
@@ -459,6 +487,35 @@ public sealed class EfStateStore : IStateStore
             SizeGb = profile.SizeGb,
             MountPath = profile.MountPath,
             IsPersistent = profile.IsPersistent,
+        };
+    }
+
+    /// <summary>
+    /// Maps the credential profile on a resource to a persistence record.
+    /// </summary>
+    /// <param name="resource">The resource domain model.</param>
+    /// <param name="resourceId">The owning resource identifier.</param>
+    /// <returns>The credential profile record or null when not present.</returns>
+    private static CredentialProfileRecord? MapCredentialProfileRecord(Resource resource, Guid resourceId)
+    {
+        CredentialProfile? profile = resource switch
+        {
+            PostgresResource postgres => postgres.CredentialProfile,
+            MongoResource mongo => mongo.CredentialProfile,
+            RabbitResource rabbit => rabbit.CredentialProfile,
+            _ => null,
+        };
+
+        if (profile is null)
+        {
+            return null;
+        }
+
+        return new CredentialProfileRecord
+        {
+            ResourceId = resourceId,
+            Username = profile.Username,
+            Password = profile.Password,
         };
     }
 
@@ -563,6 +620,47 @@ public sealed class EfStateStore : IStateStore
         record.StorageProfile.SizeGb = profile.SizeGb;
         record.StorageProfile.MountPath = profile.MountPath;
         record.StorageProfile.IsPersistent = profile.IsPersistent;
+    }
+
+    /// <summary>
+    /// Applies the credential profile changes from the domain model to the record.
+    /// </summary>
+    /// <param name="record">The resource record to update.</param>
+    /// <param name="resource">The resource domain model.</param>
+    private void ApplyCredentialProfile(ResourceRecord record, Resource resource)
+    {
+        CredentialProfile? profile = resource switch
+        {
+            PostgresResource postgres => postgres.CredentialProfile,
+            MongoResource mongo => mongo.CredentialProfile,
+            RabbitResource rabbit => rabbit.CredentialProfile,
+            _ => null,
+        };
+
+        if (profile is null)
+        {
+            if (record.CredentialProfile is not null)
+            {
+                _dbContext.CredentialProfiles.Remove(record.CredentialProfile);
+                record.CredentialProfile = null;
+            }
+
+            return;
+        }
+
+        if (record.CredentialProfile is null)
+        {
+            record.CredentialProfile = new CredentialProfileRecord
+            {
+                ResourceId = record.Id,
+                Username = profile.Username,
+                Password = profile.Password,
+            };
+            return;
+        }
+
+        record.CredentialProfile.Username = profile.Username;
+        record.CredentialProfile.Password = profile.Password;
     }
 
     /// <summary>

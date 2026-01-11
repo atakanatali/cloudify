@@ -177,7 +177,7 @@ public sealed class DockerComposeOrchestrator : IOrchestrator
 
     private string GetServiceName(Resource resource)
     {
-        return resource.Name;
+        return ComposeNaming.GetServiceName(resource);
     }
 
     private async Task<(ProcessExecutionResult Result, IReadOnlyList<string> Arguments)> RunComposeAsync(

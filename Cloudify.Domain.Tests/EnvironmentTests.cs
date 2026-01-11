@@ -61,6 +61,7 @@ public sealed class EnvironmentTests
             DateTimeOffset.UtcNow);
 
         var storage = new StorageProfile("db-data", 20, "/var/lib/postgres", true);
+        var credentialProfile = new CredentialProfile("admin", "password");
 
         var resource = new PostgresResource(
             Guid.NewGuid(),
@@ -70,6 +71,7 @@ public sealed class EnvironmentTests
             DateTimeOffset.UtcNow,
             null,
             storage,
+            credentialProfile,
             null);
 
         Assert.Throws<InvalidOperationException>(() => environment.AddResource(resource));
