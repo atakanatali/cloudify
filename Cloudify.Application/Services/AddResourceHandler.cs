@@ -11,16 +11,19 @@ public sealed class AddResourceHandler : IAddResourceHandler
 {
     private readonly IStateStore _stateStore;
     private readonly IPortAllocator _portAllocator;
+    private readonly IOrchestrator _orchestrator;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AddResourceHandler"/> class.
     /// </summary>
     /// <param name="stateStore">The state store.</param>
     /// <param name="portAllocator">The port allocator.</param>
-    public AddResourceHandler(IStateStore stateStore, IPortAllocator portAllocator)
+    /// <param name="orchestrator">The orchestrator.</param>
+    public AddResourceHandler(IStateStore stateStore, IPortAllocator portAllocator, IOrchestrator orchestrator)
     {
         _stateStore = stateStore ?? throw new ArgumentNullException(nameof(stateStore));
         _portAllocator = portAllocator ?? throw new ArgumentNullException(nameof(portAllocator));
+        _orchestrator = orchestrator ?? throw new ArgumentNullException(nameof(orchestrator));
     }
 
     /// <inheritdoc />
@@ -122,7 +125,9 @@ public sealed class AddResourceHandler : IAddResourceHandler
             return Result<AddResourceResponse>.Fail(ErrorCodes.Conflict, exception.Message);
         }
 
-        ConnectionInfoDto? connectionInfo = BuildConnectionInfo(allocation?.Port);
+        await _orchestrator.DeployEnvironmentAsync(resource.EnvironmentId, cancellationToken);
+
+        ConnectionInfoDto? connectionInfo = BuildConnectionInfo(allocation?.Port, resource);
 
         return Result<AddResourceResponse>.Ok(new AddResourceResponse
         {
@@ -530,18 +535,37 @@ public sealed class AddResourceHandler : IAddResourceHandler
     /// Builds the connection info from the allocated port when available.
     /// </summary>
     /// <param name="allocatedPort">The allocated host port.</param>
+    /// <param name="resource">The resource with optional credentials.</param>
     /// <returns>The connection info when a port is provided; otherwise, null.</returns>
-    private static ConnectionInfoDto? BuildConnectionInfo(int? allocatedPort)
+    private static ConnectionInfoDto? BuildConnectionInfo(int? allocatedPort, Resource resource)
     {
         if (!allocatedPort.HasValue || allocatedPort.Value <= 0)
         {
             return null;
         }
 
-        return new ConnectionInfoDto
+        var connectionInfo = new ConnectionInfoDto
         {
             Host = "localhost",
             Port = allocatedPort.Value,
         };
+
+        switch (resource)
+        {
+            case PostgresResource postgres:
+                connectionInfo.Username = postgres.CredentialProfile.Username;
+                connectionInfo.Password = postgres.CredentialProfile.Password;
+                break;
+            case MongoResource mongo:
+                connectionInfo.Username = mongo.CredentialProfile.Username;
+                connectionInfo.Password = mongo.CredentialProfile.Password;
+                break;
+            case RabbitResource rabbit:
+                connectionInfo.Username = rabbit.CredentialProfile.Username;
+                connectionInfo.Password = rabbit.CredentialProfile.Password;
+                break;
+        }
+
+        return connectionInfo;
     }
 }

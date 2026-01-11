@@ -14,4 +14,14 @@ public sealed class ConnectionInfoDto
     /// Gets or sets the connection port number.
     /// </summary>
     public int Port { get; set; }
+
+    /// <summary>
+    /// Gets or sets the username for the connection when authentication is required.
+    /// </summary>
+    public string? Username { get; set; }
+
+    /// <summary>
+    /// Gets or sets the password for the connection when authentication is required.
+    /// </summary>
+    public string? Password { get; set; }
 }

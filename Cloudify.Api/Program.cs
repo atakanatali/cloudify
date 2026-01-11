@@ -22,7 +22,18 @@ builder.Services.AddOptions<DockerComposeOptions>()
 
 builder.Services.AddCloudifyPersistence("./data/cloudify.db");
 builder.Services.AddSingleton<IEnvironmentRepository, InMemoryEnvironmentRepository>();
-builder.Services.AddScoped<IEnvironmentService, EnvironmentService>();
+builder.Services.AddScoped<IAddResourceHandler, AddResourceHandler>();
+builder.Services.AddScoped<ICreateEnvironmentHandler, CreateEnvironmentHandler>();
+builder.Services.AddScoped<ICreateResourceGroupHandler, CreateResourceGroupHandler>();
+builder.Services.AddScoped<IDeleteResourceHandler, DeleteResourceHandler>();
+builder.Services.AddScoped<IGetEnvironmentOverviewHandler, GetEnvironmentOverviewHandler>();
+builder.Services.AddScoped<IGetResourceHealthHandler, GetResourceHealthHandler>();
+builder.Services.AddScoped<IGetResourceLogsHandler, GetResourceLogsHandler>();
+builder.Services.AddScoped<IListResourceGroupsHandler, ListResourceGroupsHandler>();
+builder.Services.AddScoped<IRestartResourceHandler, RestartResourceHandler>();
+builder.Services.AddScoped<IScaleResourceHandler, ScaleResourceHandler>();
+builder.Services.AddScoped<IStartResourceHandler, StartResourceHandler>();
+builder.Services.AddScoped<IStopResourceHandler, StopResourceHandler>();
 builder.Services.AddSingleton<ProcessRunner>();
 builder.Services.AddScoped<IOrchestrator, DockerComposeOrchestrator>();
 builder.Services.AddScoped<ITemplateRenderer, DockerComposeTemplateRenderer>();
