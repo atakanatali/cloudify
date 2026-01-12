@@ -42,11 +42,12 @@ public sealed class DockerComposeOrchestrator : IOrchestrator
         string composeYaml = await _templateRenderer.RenderEnvironmentComposeAsync(environmentId, cancellationToken);
         string environmentDirectory = GetEnvironmentDirectory(environmentId);
         string composeFilePath = GetComposeFilePath(environmentId);
+        IReadOnlyList<Resource> resources = await _stateStore.ListResourcesAsync(environmentId, cancellationToken);
 
         Directory.CreateDirectory(environmentDirectory);
         await File.WriteAllTextAsync(composeFilePath, composeYaml, cancellationToken);
 
-        IReadOnlyList<string> commandArguments = new[] { "up", "-d" };
+        IReadOnlyList<string> commandArguments = BuildDeployArguments(resources);
         (ProcessExecutionResult result, IReadOnlyList<string> arguments) = await RunComposeAsync(
             environmentId,
             commandArguments,
@@ -195,6 +196,35 @@ public sealed class DockerComposeOrchestrator : IOrchestrator
     private string GetServiceName(Resource resource)
     {
         return ComposeNaming.GetServiceName(resource);
+    }
+
+    /// <summary>
+    /// Builds the compose arguments for deploying an environment with capacity settings.
+    /// </summary>
+    /// <param name="resources">The resources to deploy.</param>
+    /// <returns>The compose argument list.</returns>
+    private IReadOnlyList<string> BuildDeployArguments(IReadOnlyList<Resource> resources)
+    {
+        var args = new List<string> { "up", "-d" };
+
+        foreach (Resource resource in resources)
+        {
+            if (resource is not AppServiceResource appService)
+            {
+                continue;
+            }
+
+            int replicas = appService.CapacityProfile?.Replicas ?? 1;
+            if (replicas <= 1)
+            {
+                continue;
+            }
+
+            args.Add("--scale");
+            args.Add($"{GetServiceName(appService)}={replicas}");
+        }
+
+        return args;
     }
 
     private async Task<(ProcessExecutionResult Result, IReadOnlyList<string> Arguments)> RunComposeAsync(

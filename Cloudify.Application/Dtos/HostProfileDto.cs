@@ -16,6 +16,11 @@ public sealed class HostProfileDto
     public int TotalMemoryGb { get; set; }
 
     /// <summary>
+    /// Gets or sets the available disk in gigabytes when detected.
+    /// </summary>
+    public int? AvailableDiskGb { get; set; }
+
+    /// <summary>
     /// Gets or sets the storage hint string.
     /// </summary>
     public string? StorageHint { get; set; }

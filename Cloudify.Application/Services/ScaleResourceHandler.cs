@@ -47,18 +47,28 @@ public sealed class ScaleResourceHandler : IScaleResourceHandler
             return Result<ScaleResourceResponse>.Fail(ErrorCodes.NotFound, "Resource not found.");
         }
 
+        bool isAppService = resource is AppServiceResource;
+        int effectiveReplicas = isAppService ? request.Replicas : 1;
+
         CapacityProfile capacityProfile = resource.CapacityProfile is null
-            ? new CapacityProfile(null, null, request.Replicas, null)
-            : new CapacityProfile(resource.CapacityProfile.CpuLimit, resource.CapacityProfile.MemoryLimit, request.Replicas, resource.CapacityProfile.Notes);
+            ? new CapacityProfile(null, null, effectiveReplicas, null)
+            : new CapacityProfile(
+                resource.CapacityProfile.CpuLimit,
+                resource.CapacityProfile.MemoryLimit,
+                effectiveReplicas,
+                resource.CapacityProfile.Notes);
 
         Resource updatedResource = CloneResource(resource, capacityProfile);
-        await _orchestrator.ScaleResourceAsync(resource.Id, request.Replicas, cancellationToken);
+        if (isAppService)
+        {
+            await _orchestrator.ScaleResourceAsync(resource.Id, effectiveReplicas, cancellationToken);
+        }
         await _stateStore.UpdateResourceAsync(updatedResource, cancellationToken);
 
         return Result<ScaleResourceResponse>.Ok(new ScaleResourceResponse
         {
             ResourceId = resource.Id,
-            Replicas = request.Replicas,
+            Replicas = effectiveReplicas,
         });
     }
 

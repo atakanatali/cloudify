@@ -59,7 +59,7 @@ public sealed class AddResourceHandler : IAddResourceHandler
             return Result<AddResourceResponse>.Fail(ErrorCodes.ValidationFailed, "Exposed ports must be between 1 and 65535.");
         }
 
-        if (!TryBuildCapacityProfile(request.CapacityProfile, out CapacityProfile? capacityProfile, out string? capacityError))
+        if (!TryBuildCapacityProfile(request.ResourceType, request.CapacityProfile, out CapacityProfile? capacityProfile, out string? capacityError))
         {
             return Result<AddResourceResponse>.Fail(ErrorCodes.ValidationFailed, capacityError ?? "Invalid capacity profile.");
         }
@@ -143,13 +143,18 @@ public sealed class AddResourceHandler : IAddResourceHandler
     }
 
     /// <summary>
-    /// Attempts to build a capacity profile from the DTO.
+    /// Attempts to build a capacity profile from the DTO and resource type.
     /// </summary>
+    /// <param name="resourceType">The resource type.</param>
     /// <param name="dto">The capacity profile DTO.</param>
     /// <param name="profile">The resulting capacity profile.</param>
     /// <param name="error">The validation error message, if any.</param>
     /// <returns>True when the profile is valid; otherwise, false.</returns>
-    private static bool TryBuildCapacityProfile(CapacityProfileDto? dto, out CapacityProfile? profile, out string? error)
+    private static bool TryBuildCapacityProfile(
+        ResourceType resourceType,
+        CapacityProfileDto? dto,
+        out CapacityProfile? profile,
+        out string? error)
     {
         profile = null;
         error = null;
@@ -183,7 +188,8 @@ public sealed class AddResourceHandler : IAddResourceHandler
             return false;
         }
 
-        profile = new CapacityProfile(dto.CpuLimit, dto.MemoryLimit, dto.Replicas, dto.Notes);
+        int replicas = resourceType == ResourceType.AppService ? dto.Replicas : 1;
+        profile = new CapacityProfile(dto.CpuLimit, dto.MemoryLimit, replicas, dto.Notes);
         return true;
     }
 

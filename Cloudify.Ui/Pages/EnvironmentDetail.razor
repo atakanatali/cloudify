@@ -39,6 +39,16 @@ else if (Overview is not null)
             </div>
         </section>
         <section class="card">
+            <h2 class="card-title">This machine</h2>
+            <p class="card-subtitle">Host capacity overview</p>
+            <div class="connection-info">
+                <span>CPU cores: @Overview.HostProfile.CpuCount</span>
+                <span>Total memory: @Overview.HostProfile.TotalMemoryGb GB</span>
+                <span>@GetDiskSummary()</span>
+            </div>
+            <p class="card-subtitle">Guidance: keep 20–30% headroom for the host and workloads.</p>
+        </section>
+        <section class="card">
             <h2 class="card-title">Compose Preview</h2>
             <p class="card-subtitle">Rendered compose summary</p>
             <textarea readonly>@Overview.ComposeYaml</textarea>
@@ -101,10 +111,17 @@ else if (Overview is not null)
                             }
                         </td>
                         <td>
-                            <div class="form-row">
-                                <input type="number" min="1" value="@GetScaleTarget(resource)" @onchange="eventArgs => UpdateScaleTarget(resource, eventArgs.Value)" />
-                                <button class="button secondary" type="button" @onclick="() => ScaleResourceAsync(resource)" disabled="@IsResourceBusy(resource)">Scale</button>
-                            </div>
+                            @if (resource.ResourceType == ResourceType.AppService)
+                            {
+                                <div class="form-row">
+                                    <input type="number" min="1" value="@GetScaleTarget(resource)" @onchange="eventArgs => UpdateScaleTarget(resource, eventArgs.Value)" />
+                                    <button class="button secondary" type="button" @onclick="() => ScaleResourceAsync(resource)" disabled="@IsResourceBusy(resource)">Scale</button>
+                                </div>
+                            }
+                            else
+                            {
+                                <span class="badge">Single replica</span>
+                            }
                         </td>
                         <td>
                             <div class="table-actions">
@@ -204,6 +221,7 @@ else if (Overview is not null)
                     <div class="form-row">
                         <label for="replicas">Replicas</label>
                         <InputNumber id="replicas" @bind-Value="CreateModel.Capacity.Replicas" />
+                        <span class="card-subtitle">App services can scale; data services remain single-replica.</span>
                     </div>
                     <div class="form-row">
                         <label for="capacity-notes">Notes</label>
@@ -330,6 +348,17 @@ else if (Overview is not null)
                         </div>
                     }
                 </div>
+            </div>
+
+            <div class="card">
+                <h4 class="card-title">Capacity</h4>
+                <p class="card-subtitle">Requested limits and replicas</p>
+                <div class="connection-info">
+                    <span>CPU limit: @FormatCapacityValue(SelectedResource.CapacityProfile?.CpuLimit, "cores")</span>
+                    <span>Memory limit: @FormatCapacityValue(SelectedResource.CapacityProfile?.MemoryLimit, "GB")</span>
+                    <span>Replicas: @GetReplicaSummary(SelectedResource)</span>
+                </div>
+                <p class="card-subtitle">@GetReplicaGuidance(SelectedResource)</p>
             </div>
 
             <div class="card">
@@ -896,6 +925,64 @@ else if (Overview is not null)
     }
 
     /// <summary>
+    /// Builds the host disk summary for display.
+    /// </summary>
+    /// <returns>The formatted disk summary string.</returns>
+    private string GetDiskSummary()
+    {
+        if (Overview is null)
+        {
+            return "Available disk: unknown";
+        }
+
+        HostProfileDto profile = Overview.HostProfile;
+        string summary = profile.AvailableDiskGb is null
+            ? "Available disk: unknown"
+            : $"Available disk: {profile.AvailableDiskGb} GB";
+
+        if (!string.IsNullOrWhiteSpace(profile.StorageHint))
+        {
+            summary = $"{summary} ({profile.StorageHint})";
+        }
+
+        return summary;
+    }
+
+    /// <summary>
+    /// Formats a capacity value with a unit for display.
+    /// </summary>
+    /// <param name="value">The capacity value.</param>
+    /// <param name="unit">The capacity unit.</param>
+    /// <returns>The formatted capacity string.</returns>
+    private static string FormatCapacityValue(int? value, string unit)
+    {
+        return value is null ? "Not set" : $"{value} {unit}";
+    }
+
+    /// <summary>
+    /// Builds a replica summary string for a resource.
+    /// </summary>
+    /// <param name="resource">The resource to summarize.</param>
+    /// <returns>The replica summary.</returns>
+    private static string GetReplicaSummary(ResourceSummaryDto resource)
+    {
+        int replicas = resource.CapacityProfile?.Replicas ?? 1;
+        return resource.ResourceType == ResourceType.AppService ? replicas.ToString() : "1 (fixed)";
+    }
+
+    /// <summary>
+    /// Returns replica guidance messaging for a resource.
+    /// </summary>
+    /// <param name="resource">The resource to describe.</param>
+    /// <returns>The replica guidance string.</returns>
+    private static string GetReplicaGuidance(ResourceSummaryDto resource)
+    {
+        return resource.ResourceType == ResourceType.AppService
+            ? "App services can scale horizontally through Compose."
+            : "Datastores remain single-replica in this MVP.";
+    }
+
+    /// <summary>
     /// Builds the capacity profile payload.
     /// </summary>
     /// <returns>The capacity profile DTO.</returns>
@@ -1088,7 +1175,10 @@ else if (Overview is not null)
         {
             if (!ScaleTargets.ContainsKey(resource.Id))
             {
-                ScaleTargets[resource.Id] = resource.CapacityProfile?.Replicas ?? 1;
+                int replicas = resource.ResourceType == ResourceType.AppService
+                    ? resource.CapacityProfile?.Replicas ?? 1
+                    : 1;
+                ScaleTargets[resource.Id] = replicas;
             }
         }
 
