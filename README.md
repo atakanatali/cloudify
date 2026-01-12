@@ -1,5 +1,9 @@
 # Cloudify
 
+## Quick Links
+
+- [Architecture](ARCHITECTURE.md)
+
 ## 1. Project Overview
 
 Cloudify is a **local-first cloud platform** that delivers an AWS/Azure/GCP-like experience on a developer’s own machine. It uses Docker Compose as the initial orchestration backend and exposes a clean API plus a Blazor Server UI for managing local infrastructure resources.
