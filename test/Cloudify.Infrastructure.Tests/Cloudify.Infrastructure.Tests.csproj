@@ -16,6 +16,6 @@
     </PackageReference>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\Cloudify.Infrastructure\Cloudify.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\Cloudify.Infrastructure\Cloudify.Infrastructure.csproj" />
   </ItemGroup>
 </Project>

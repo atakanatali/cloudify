@@ -2,19 +2,19 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Cloudify.Domain", "Cloudify.Domain\\Cloudify.Domain.csproj", "{EC453ADF-2808-427B-B7ED-8C8573F50D29}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Cloudify.Domain", "src\\Cloudify.Domain\\Cloudify.Domain.csproj", "{EC453ADF-2808-427B-B7ED-8C8573F50D29}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Cloudify.Application", "Cloudify.Application\\Cloudify.Application.csproj", "{F076C202-AF00-44ED-BE67-DA39A81670D6}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Cloudify.Application", "src\\Cloudify.Application\\Cloudify.Application.csproj", "{F076C202-AF00-44ED-BE67-DA39A81670D6}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Cloudify.Infrastructure", "Cloudify.Infrastructure\\Cloudify.Infrastructure.csproj", "{3BAAE2EE-817C-4DB9-805F-6A66B33105DA}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Cloudify.Infrastructure", "src\\Cloudify.Infrastructure\\Cloudify.Infrastructure.csproj", "{3BAAE2EE-817C-4DB9-805F-6A66B33105DA}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Cloudify.Api", "Cloudify.Api\\Cloudify.Api.csproj", "{20C6BE08-E702-4ACC-90D8-D8CC564696D1}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Cloudify.Api", "src\\Cloudify.Api\\Cloudify.Api.csproj", "{20C6BE08-E702-4ACC-90D8-D8CC564696D1}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Cloudify.Ui", "Cloudify.Ui\\Cloudify.Ui.csproj", "{F0BB1397-2057-4728-BC3F-6090822C3B16}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Cloudify.Ui", "src\\Cloudify.Ui\\Cloudify.Ui.csproj", "{F0BB1397-2057-4728-BC3F-6090822C3B16}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Cloudify.Domain.Tests", "Cloudify.Domain.Tests\\Cloudify.Domain.Tests.csproj", "{3D0D9359-121F-4035-9B71-360C171B6EB8}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Cloudify.Domain.Tests", "test\\Cloudify.Domain.Tests\\Cloudify.Domain.Tests.csproj", "{3D0D9359-121F-4035-9B71-360C171B6EB8}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Cloudify.Infrastructure.Tests", "Cloudify.Infrastructure.Tests\\Cloudify.Infrastructure.Tests.csproj", "{CBF1F117-5E07-40F2-AA95-4CE6F3987D0E}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Cloudify.Infrastructure.Tests", "test\\Cloudify.Infrastructure.Tests\\Cloudify.Infrastructure.Tests.csproj", "{CBF1F117-5E07-40F2-AA95-4CE6F3987D0E}"
 EndProject
 Global
     GlobalSection(SolutionConfigurationPlatforms) = preSolution

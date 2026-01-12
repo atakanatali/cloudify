@@ -104,7 +104,7 @@ cd cloudify
 ### Run the platform
 
 ```bash
-./scripts/run.sh
+./scripts/run-local.sh
 ```
 
 ### First access to the UI
@@ -114,6 +114,8 @@ cd cloudify
 
 ### Folder structure
 
+- `src/` — Production projects (`Cloudify.*`)
+- `test/` — Test projects (`Cloudify.*.Tests`)
 - `data/` — SQLite database and local state
 - `environments/` — Generated environment definitions and Compose files
 - `scripts/` — Utility scripts for local development
