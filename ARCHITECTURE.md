@@ -25,6 +25,10 @@ Cloudify exists to provide a local-first cloud platform that approximates core c
 * **API layer (`Cloudify.Api`)**: REST controllers mapping application use cases to HTTP endpoints, including RFC 7807 error modeling.
 * **UI layer (`Cloudify.Ui`)**: Blazor Server UI acting as an API client, with no business logic.
 
+### Repository layout
+* **`src/`**: Production projects (`Cloudify.*`).
+* **`test/`**: Test projects (`Cloudify.*.Tests`).
+
 ### Control plane vs execution plane
 * **Control plane**: The API + application + domain layers act as the control plane. They accept intent, validate invariants, persist state, and drive orchestration.
 * **Execution plane**: Docker Compose (invoked via a process runner) acts as the execution plane. It materializes environment state from composed YAML manifests and manages container lifecycles.

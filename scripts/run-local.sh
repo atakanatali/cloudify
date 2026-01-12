@@ -3,7 +3,7 @@ set -euo pipefail
 
 root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-dotnet run --project "${root_dir}/Cloudify.Api/Cloudify.Api.csproj" --urls "https://localhost:5001" &
+dotnet run --project "${root_dir}/src/Cloudify.Api/Cloudify.Api.csproj" --urls "https://localhost:5001" &
 api_pid=$!
 
 cleanup() {
@@ -12,4 +12,4 @@ cleanup() {
 
 trap cleanup EXIT
 
-dotnet run --project "${root_dir}/Cloudify.Ui/Cloudify.Ui.csproj"
+dotnet run --project "${root_dir}/src/Cloudify.Ui/Cloudify.Ui.csproj"

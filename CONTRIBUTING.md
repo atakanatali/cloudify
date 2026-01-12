@@ -74,98 +74,102 @@ Cloudify follows Clean Architecture / Hexagonal Architecture. If a change violat
 - **Open an issue** for architectural changes, new resources/providers, or cross-cutting refactors.
 - **Open a PR** for small, scoped improvements or well-defined fixes.
 
-## 6. Coding Standards
-### 6.1 General Principles
+## 6. Repository Layout
+- `src/` contains production projects (`Cloudify.*`).
+- `test/` contains test projects (`Cloudify.*.Tests`).
+
+## 7. Coding Standards
+### 7.1 General Principles
 - Follow **SOLID** principles.
 - Prefer composition over inheritance.
 - Use immutability where reasonable to reduce side effects.
 
-### 6.2 Async/Await Best Practices
+### 7.2 Async/Await Best Practices
 - Avoid blocking calls (`.Result`, `.Wait()`).
 - Use async all the way through.
 - Do not create “fire and forget” tasks without explicit lifecycle management.
 
-### 6.3 CancellationToken Usage
+### 7.3 CancellationToken Usage
 - Public async APIs must accept `CancellationToken`.
 - Pass tokens through all async layers.
 - Never ignore cancellation in infrastructure or long-running operations.
 
-### 6.4 Exception Handling Rules
+### 7.4 Exception Handling Rules
 - Do not use exceptions for control flow.
 - Catch exceptions only when you can add context or translate them into domain/application errors.
 - Do not swallow exceptions.
 
-## 7. Documentation Expectations
-### 7.1 XML Documentation Requirements
+## 8. Documentation Expectations
+### 8.1 XML Documentation Requirements
 - Public types and APIs should include XML documentation.
 - If a method defines a non-obvious invariant or side effect, document it.
 
-### 7.2 README vs ARCHITECTURE.md
+### 8.2 README vs ARCHITECTURE.md
 - Update **README** for user-facing behavior or usage changes.
 - Update **ARCHITECTURE.md** for structural, layered, or system-design changes.
 
-### 7.3 Inline Comments vs Docs
+### 8.3 Inline Comments vs Docs
 - Inline comments are for “why”, not “what”.
 - If code is complex enough to require heavy inline comments, consider extracting or documenting higher-level intent instead.
 
-## 8. Testing Guidelines
-### 8.1 Unit Tests vs Integration Tests
+## 9. Testing Guidelines
+### 9.1 Unit Tests vs Integration Tests
 - Unit tests validate domain and application logic.
 - Integration tests validate infrastructure adapters and system boundaries.
 
-### 8.2 Domain Test Expectations
+### 9.2 Domain Test Expectations
 - Domain logic must be thoroughly covered by deterministic unit tests.
 - Avoid time-dependent or randomized tests without controlled clocks/inputs.
 
-### 8.3 Infrastructure Test Limitations
+### 9.3 Infrastructure Test Limitations
 - Mock external systems unless explicitly running against a local, deterministic environment.
 - Do not write tests that require live cloud resources in CI.
 
-### 8.4 Deterministic Test Behavior Requirement
+### 9.4 Deterministic Test Behavior Requirement
 - Tests must be repeatable and deterministic.
 - Flaky tests will be removed.
 
-## 9. Adding New Resources or Providers
-### 9.1 Adding a New Resource Type (e.g., Kafka, MySQL)
+## 10. Adding New Resources or Providers
+### 10.1 Adding a New Resource Type (e.g., Kafka, MySQL)
 - Define the domain model and interfaces in **Domain** and **Application**.
 - Add use cases in Application that describe resource lifecycle operations.
 - Implement provider-specific adapters in Infrastructure.
 - Provide unit tests for domain/application logic and integration tests for adapters.
 - Open an issue and request a design review before implementation.
 
-### 9.2 Adding a New Orchestrator Provider (e.g., Kubernetes)
+### 10.2 Adding a New Orchestrator Provider (e.g., Kubernetes)
 - Add a new provider adapter implementing the orchestrator interfaces.
 - Ensure provider behavior is deterministic and explicitly configurable.
 - Document provider-specific assumptions and limitations.
 - Require architectural review prior to merging.
 
-### 9.3 Required Interfaces and Design Review
+### 10.3 Required Interfaces and Design Review
 - All new resources/providers must be defined via interfaces owned by Application or Domain.
 - Design reviews must confirm boundary integrity and long-term maintainability.
 
-## 10. Performance & Scalability Considerations
+## 11. Performance & Scalability Considerations
 - Avoid premature optimization, but do not ignore performance regressions.
 - Think in terms of scale even for MVP code.
 - Prefer clear, predictable performance characteristics over micro-optimizations.
 
-## 11. Review Process
-### 11.1 What Reviewers Will Look For
+## 12. Review Process
+### 12.1 What Reviewers Will Look For
 - Clean Architecture compliance.
 - Deterministic behavior and minimal side effects.
 - Clear separation of concerns.
 - Minimal, justified dependencies.
 - Sufficient tests and documentation.
 
-### 11.2 Common Reasons PRs Are Rejected
+### 12.2 Common Reasons PRs Are Rejected
 - Layer boundary violations.
 - Infrastructure code in Domain or Application.
 - Non-deterministic behavior without explicit justification.
 - Missing tests or documentation.
 - Overly broad or unfocused scope.
 
-### 11.3 Architecture Consistency over Feature Completeness
+### 12.3 Architecture Consistency over Feature Completeness
 - A smaller, correct change is preferred over a complete but inconsistent feature.
 - Reviewers will prioritize long-term architectural integrity.
 
-## 12. Final Notes
+## 13. Final Notes
 We welcome thoughtful contributions that respect Cloudify’s architectural principles. If in doubt, open an issue and discuss before coding. Architectural discipline is a core value of this project, and it is not negotiable.
