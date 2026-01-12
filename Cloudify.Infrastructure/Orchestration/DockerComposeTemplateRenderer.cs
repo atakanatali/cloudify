@@ -65,6 +65,7 @@ public sealed class DockerComposeTemplateRenderer : ITemplateRenderer
         IReadOnlyDictionary<string, string> environment = BuildEnvironmentVariables(resource);
         IReadOnlyList<ComposeVolumeMount> volumeMounts = BuildVolumeMounts(environmentId, resource, volumes);
         ComposeHealthcheckDefinition? healthcheck = BuildHealthcheck(resource);
+        ComposeResourceConstraints? resourceConstraints = BuildResourceConstraints(resource);
 
         return new ComposeServiceDefinition(
             serviceName,
@@ -72,7 +73,8 @@ public sealed class DockerComposeTemplateRenderer : ITemplateRenderer
             ports,
             environment,
             volumeMounts,
-            healthcheck);
+            healthcheck,
+            resourceConstraints);
     }
 
     /// <summary>
@@ -243,6 +245,26 @@ public sealed class DockerComposeTemplateRenderer : ITemplateRenderer
     }
 
     /// <summary>
+    /// Builds resource constraints from the capacity profile when available.
+    /// </summary>
+    /// <param name="resource">The resource to evaluate.</param>
+    /// <returns>The resource constraints or null when none are configured.</returns>
+    private static ComposeResourceConstraints? BuildResourceConstraints(Resource resource)
+    {
+        if (resource.CapacityProfile is null)
+        {
+            return null;
+        }
+
+        if (resource.CapacityProfile.CpuLimit is null && resource.CapacityProfile.MemoryLimit is null)
+        {
+            return null;
+        }
+
+        return new ComposeResourceConstraints(resource.CapacityProfile.CpuLimit, resource.CapacityProfile.MemoryLimit);
+    }
+
+    /// <summary>
     /// Renders the Compose YAML text for the given services and volumes.
     /// </summary>
     /// <param name="services">The ordered list of services.</param>
@@ -288,6 +310,31 @@ public sealed class DockerComposeTemplateRenderer : ITemplateRenderer
                 }
             }
 
+            if (service.ResourceConstraints is not null)
+            {
+                if (service.ResourceConstraints.MemoryLimitGb is not null)
+                {
+                    builder.AppendLine($"    mem_limit: \"{FormatMemoryLimit(service.ResourceConstraints.MemoryLimitGb.Value)}\"");
+                }
+
+                if (service.ResourceConstraints.HasLimits)
+                {
+                    builder.AppendLine("    deploy:");
+                    builder.AppendLine("      resources:");
+                    builder.AppendLine("        limits:");
+
+                    if (service.ResourceConstraints.CpuLimit is not null)
+                    {
+                        builder.AppendLine($"          cpus: \"{service.ResourceConstraints.CpuLimit.Value}\"");
+                    }
+
+                    if (service.ResourceConstraints.MemoryLimitGb is not null)
+                    {
+                        builder.AppendLine($"          memory: \"{FormatMemoryLimit(service.ResourceConstraints.MemoryLimitGb.Value)}\"");
+                    }
+                }
+            }
+
             if (service.Healthcheck is not null)
             {
                 builder.AppendLine("    healthcheck:");
@@ -327,6 +374,16 @@ public sealed class DockerComposeTemplateRenderer : ITemplateRenderer
     }
 
     /// <summary>
+    /// Formats a memory value in gigabytes for Docker Compose.
+    /// </summary>
+    /// <param name="memoryGb">The memory value in gigabytes.</param>
+    /// <returns>The formatted memory string.</returns>
+    private static string FormatMemoryLimit(int memoryGb)
+    {
+        return $"{memoryGb}g";
+    }
+
+    /// <summary>
     /// Represents a Compose service definition.
     /// </summary>
     private sealed class ComposeServiceDefinition
@@ -346,7 +403,8 @@ public sealed class DockerComposeTemplateRenderer : ITemplateRenderer
             IReadOnlyList<ComposePortMapping> ports,
             IReadOnlyDictionary<string, string> environment,
             IReadOnlyList<ComposeVolumeMount> volumes,
-            ComposeHealthcheckDefinition? healthcheck)
+            ComposeHealthcheckDefinition? healthcheck,
+            ComposeResourceConstraints? resourceConstraints)
         {
             Name = name;
             Image = image;
@@ -354,6 +412,7 @@ public sealed class DockerComposeTemplateRenderer : ITemplateRenderer
             Environment = environment;
             Volumes = volumes;
             Healthcheck = healthcheck;
+            ResourceConstraints = resourceConstraints;
         }
 
         /// <summary>
@@ -385,6 +444,43 @@ public sealed class DockerComposeTemplateRenderer : ITemplateRenderer
         /// Gets the healthcheck definition.
         /// </summary>
         public ComposeHealthcheckDefinition? Healthcheck { get; }
+
+        /// <summary>
+        /// Gets the optional resource constraints for the service.
+        /// </summary>
+        public ComposeResourceConstraints? ResourceConstraints { get; }
+    }
+
+    /// <summary>
+    /// Represents resource limits configured for a Compose service.
+    /// </summary>
+    private sealed class ComposeResourceConstraints
+    {
+        /// <summary>
+        /// Initializes a new instance of the <see cref="ComposeResourceConstraints"/> class.
+        /// </summary>
+        /// <param name="cpuLimit">The CPU limit in cores.</param>
+        /// <param name="memoryLimitGb">The memory limit in gigabytes.</param>
+        public ComposeResourceConstraints(int? cpuLimit, int? memoryLimitGb)
+        {
+            CpuLimit = cpuLimit;
+            MemoryLimitGb = memoryLimitGb;
+        }
+
+        /// <summary>
+        /// Gets the CPU limit in cores.
+        /// </summary>
+        public int? CpuLimit { get; }
+
+        /// <summary>
+        /// Gets the memory limit in gigabytes.
+        /// </summary>
+        public int? MemoryLimitGb { get; }
+
+        /// <summary>
+        /// Gets a value indicating whether any limits are configured.
+        /// </summary>
+        public bool HasLimits => CpuLimit is not null || MemoryLimitGb is not null;
     }
 
     /// <summary>

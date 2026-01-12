@@ -5,6 +5,7 @@ using Cloudify.Infrastructure.Orchestration;
 using Cloudify.Infrastructure.Ports;
 using Cloudify.Infrastructure.Persistence;
 using Cloudify.Infrastructure.Processes;
+using Cloudify.Infrastructure.SystemProfiles;
 using Microsoft.Extensions.DependencyInjection;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -39,6 +40,7 @@ builder.Services.AddSingleton<ProcessRunner>();
 builder.Services.AddScoped<IOrchestrator, DockerComposeOrchestrator>();
 builder.Services.AddScoped<ITemplateRenderer, DockerComposeTemplateRenderer>();
 builder.Services.AddScoped<IPortAllocator, PortAllocator>();
+builder.Services.AddSingleton<ISystemProfileProvider, HostSystemProfileProvider>();
 
 var app = builder.Build();
 
