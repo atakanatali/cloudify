@@ -1,6 +1,6 @@
 # Cloudify
 
-<img width="384" height="256" alt="Image" src="https://github.com/user-attachments/assets/74352e9d-917c-4be1-95bf-f86e91a4e8af" />
+<img width="512" height="512" alt="Image" src="https://github.com/user-attachments/assets/21de8230-cc47-41db-955c-0de48f1762e1" />
 
 ## Quick Links
 
