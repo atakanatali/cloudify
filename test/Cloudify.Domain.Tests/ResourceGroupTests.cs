@@ -1,5 +1,7 @@
 using Cloudify.Domain.Models;
+using CloudifyDomainEnvironment = Cloudify.Domain.Models.Environment;
 using Xunit;
+using static Xunit.Assert;
 
 namespace Cloudify.Domain.Tests;
 
@@ -26,7 +28,7 @@ public sealed class ResourceGroupTests
         var groupId = Guid.NewGuid();
         var resourceGroup = new ResourceGroup(groupId, "core", DateTimeOffset.UtcNow);
 
-        var environment = new Environment(
+        var environment = new CloudifyDomainEnvironment(
             Guid.NewGuid(),
             Guid.NewGuid(),
             EnvironmentName.Test,

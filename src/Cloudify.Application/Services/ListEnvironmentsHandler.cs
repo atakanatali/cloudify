@@ -1,6 +1,7 @@
 using Cloudify.Application.Dtos;
 using Cloudify.Application.Ports;
 using Cloudify.Domain.Models;
+using CloudifyDomainEnvironment = Cloudify.Domain.Models.Environment;
 
 namespace Cloudify.Application.Services;
 
@@ -38,7 +39,7 @@ public sealed class ListEnvironmentsHandler : IListEnvironmentsHandler
             return Result<ListEnvironmentsResponse>.Fail(ErrorCodes.ValidationFailed, "Resource group identifier is required.");
         }
 
-        IReadOnlyList<Environment> environments = await _stateStore.ListEnvironmentsAsync(request.ResourceGroupId, cancellationToken);
+        IReadOnlyList<CloudifyDomainEnvironment> environments = await _stateStore.ListEnvironmentsAsync(request.ResourceGroupId, cancellationToken);
 
         var response = new ListEnvironmentsResponse
         {

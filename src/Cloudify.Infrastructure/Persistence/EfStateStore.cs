@@ -51,10 +51,9 @@ public sealed class EfStateStore : IStateStore
         List<ResourceGroupRecord> records = await _dbContext.ResourceGroups
             .AsNoTracking()
             .Include(record => record.Tags)
-            .OrderBy(record => record.CreatedAt)
             .ToListAsync(cancellationToken);
 
-        return records.Select(MapResourceGroup).ToArray();
+        return records.OrderBy(record => record.CreatedAt).Select(MapResourceGroup).ToArray();
     }
 
     /// <inheritdoc />
@@ -106,10 +105,9 @@ public sealed class EfStateStore : IStateStore
         List<EnvironmentRecord> records = await _dbContext.Environments
             .AsNoTracking()
             .Where(environment => environment.ResourceGroupId == resourceGroupId)
-            .OrderBy(environment => environment.CreatedAt)
             .ToListAsync(cancellationToken);
 
-        return records.Select(MapEnvironment).ToArray();
+        return records.OrderBy(environment => environment.CreatedAt).Select(MapEnvironment).ToArray();
     }
 
     /// <inheritdoc />
@@ -151,10 +149,9 @@ public sealed class EfStateStore : IStateStore
             .Include(resource => resource.StorageProfile)
             .Include(resource => resource.CredentialProfile)
             .Include(resource => resource.PortPolicies)
-            .OrderBy(resource => resource.CreatedAt)
             .ToListAsync(cancellationToken);
 
-        return records.Select(MapResource).ToArray();
+        return records.OrderBy(resource => resource.CreatedAt).Select(MapResource).ToArray();
     }
 
     /// <inheritdoc />
@@ -182,8 +179,11 @@ public sealed class EfStateStore : IStateStore
         record.ResourceType = resource.ResourceType;
         record.State = resource.State;
         record.CreatedAt = resource.CreatedAt;
-        record.AppImage = resource is AppServiceResource appService ? appService.Image : null;
-        record.AppHealthEndpointPath = resource is AppServiceResource appService ? appService.HealthEndpointPath : null;
+        if (resource is AppServiceResource appService)
+        {
+            record.AppImage = appService.Image;
+            record.AppHealthEndpointPath = appService.HealthEndpointPath;
+        }
 
         ApplyCapacityProfile(record, resource);
         ApplyStorageProfile(record, resource);
@@ -438,8 +438,11 @@ public sealed class EfStateStore : IStateStore
         record.ResourceType = resource.ResourceType;
         record.State = resource.State;
         record.CreatedAt = resource.CreatedAt;
-        record.AppImage = resource is AppServiceResource appService ? appService.Image : null;
-        record.AppHealthEndpointPath = resource is AppServiceResource appService ? appService.HealthEndpointPath : null;
+        if (resource is AppServiceResource appService2)
+        {
+            record.AppImage = appService2.Image;
+            record.AppHealthEndpointPath = appService2.HealthEndpointPath;
+        }
         record.CapacityProfile = MapCapacityProfileRecord(resource, resource.Id);
         record.StorageProfile = MapStorageProfileRecord(resource, resource.Id);
         record.CredentialProfile = MapCredentialProfileRecord(resource, resource.Id);

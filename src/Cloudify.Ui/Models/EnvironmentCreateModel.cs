@@ -1,3 +1,4 @@
+using CloudifyDomainEnvironmentName = Cloudify.Domain.Models.EnvironmentName;
 using Cloudify.Domain.Models;
 
 namespace Cloudify.Ui.Models;
@@ -10,7 +11,7 @@ public sealed class EnvironmentCreateModel
     /// <summary>
     /// Gets or sets the environment name.
     /// </summary>
-    public EnvironmentName Name { get; set; } = EnvironmentName.Dev;
+    public CloudifyDomainEnvironmentName Name { get; set; } = CloudifyDomainEnvironmentName.Dev;
 
     /// <summary>
     /// Gets or sets the network mode for the environment.
@@ -27,7 +28,7 @@ public sealed class EnvironmentCreateModel
     /// </summary>
     public void Reset()
     {
-        Name = EnvironmentName.Dev;
+        Name = CloudifyDomainEnvironmentName.Dev;
         NetworkMode = NetworkMode.Bridge;
         BaseDomain = null;
     }

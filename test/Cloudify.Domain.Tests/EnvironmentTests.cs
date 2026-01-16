@@ -1,5 +1,7 @@
 using Cloudify.Domain.Models;
+using CloudifyDomainEnvironment = Cloudify.Domain.Models.Environment;
 using Xunit;
+using static Xunit.Assert;
 
 namespace Cloudify.Domain.Tests;
 
@@ -15,7 +17,7 @@ public sealed class EnvironmentTests
     public void AddResource_WithDuplicateName_Throws()
     {
         var environmentId = Guid.NewGuid();
-        var environment = new Environment(
+        var environment = new CloudifyDomainEnvironment(
             environmentId,
             Guid.NewGuid(),
             EnvironmentName.Prod,
@@ -52,7 +54,7 @@ public sealed class EnvironmentTests
     [Fact]
     public void AddResource_WithMismatchedEnvironment_Throws()
     {
-        var environment = new Environment(
+        var environment = new CloudifyDomainEnvironment(
             Guid.NewGuid(),
             Guid.NewGuid(),
             EnvironmentName.Dev,

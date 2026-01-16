@@ -55,6 +55,7 @@ public sealed class PortAllocatorIntegrationTests
                 DateTimeOffset.UtcNow,
                 null,
                 "nginx:latest",
+                null,
                 null);
 
             await stateStore.AddResourceAsync(resource, CancellationToken.None);

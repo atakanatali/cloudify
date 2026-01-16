@@ -1,6 +1,7 @@
 using Cloudify.Application.Dtos;
 using Cloudify.Application.Ports;
 using Cloudify.Domain.Models;
+using CloudifyDomainEnvironment = Cloudify.Domain.Models.Environment;
 
 namespace Cloudify.Application.Services;
 
@@ -86,7 +87,7 @@ public sealed class AddResourceHandler : IAddResourceHandler
             return Result<AddResourceResponse>.Fail(ErrorCodes.ValidationFailed, "Health endpoint path must start with '/'.");
         }
 
-        Environment? environment = await _stateStore.GetEnvironmentAsync(request.EnvironmentId, cancellationToken);
+        CloudifyDomainEnvironment? environment = await _stateStore.GetEnvironmentAsync(request.EnvironmentId, cancellationToken);
         if (environment is null)
         {
             return Result<AddResourceResponse>.Fail(ErrorCodes.NotFound, "Environment not found.");
