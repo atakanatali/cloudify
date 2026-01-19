@@ -1,6 +1,8 @@
 # Cloudify
 
-<img width="512" height="512" alt="Image" src="https://github.com/user-attachments/assets/21de8230-cc47-41db-955c-0de48f1762e1" />
+<p align="center">
+  <img width="456" height="456" alt="Cachify Logo" src="https://github.com/user-attachments/assets/33fff638-1fe7-4488-83ad-18ee2060d170" />
+</p>
 
 ## Quick Links
 
